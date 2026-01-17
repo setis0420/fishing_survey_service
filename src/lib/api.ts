@@ -2,6 +2,54 @@ const API_BASE_URL = 'http://localhost:8000/api'
 
 // ==================== 타입 정의 ====================
 
+export interface VesselRegistry {
+  id: number
+  vessel_name: string
+  tonnage?: number
+  length?: number
+  engine_type?: string
+  engine_count?: number
+  engine_power_ps?: number
+  engine_power_kw?: number
+  hull_material?: string
+  registration_no?: string
+  build_date?: string
+  port?: string
+  business_type?: string
+  equipment_name?: string
+  equipment_power?: string
+  mmsi?: string
+  license_local?: string
+  license_start_local?: string
+  license_end_local?: string
+  license_province?: string
+  license_start_province?: string
+  license_end_province?: string
+  group_name?: string
+  created_at?: string
+  updated_at?: string
+  photo_count?: number
+  file_count?: number
+}
+
+export interface VesselRegistryUpdate {
+  vessel_name?: string
+  tonnage?: number
+  length?: number
+  engine_type?: string
+  engine_count?: number
+  engine_power_ps?: number
+  engine_power_kw?: number
+  hull_material?: string
+  port?: string
+  business_type?: string
+  mmsi?: string
+  license_local?: string
+  license_start_local?: string
+  license_end_local?: string
+  group_name?: string
+}
+
 export interface VesselInfo {
   mmsi: string
   vessel_name: string
@@ -152,4 +200,211 @@ export async function deleteAuction(auctionId: string): Promise<{ message: strin
 export async function getStatistics(): Promise<Statistics> {
   const res = await fetch(`${API_BASE_URL}/statistics`)
   return res.json()
+}
+
+// ---------- 전국어선정보 API ----------
+
+export interface VesselRegistryListResponse {
+  data: VesselRegistry[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export async function getVesselRegistry(params?: {
+  search?: string
+  port?: string
+  business_type?: string
+  group_name?: string
+  page?: number
+  page_size?: number
+}): Promise<VesselRegistryListResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.search) searchParams.set('search', params.search)
+  if (params?.port) searchParams.set('port', params.port)
+  if (params?.business_type) searchParams.set('business_type', params.business_type)
+  if (params?.group_name) searchParams.set('group_name', params.group_name)
+  if (params?.page) searchParams.set('page', String(params.page))
+  if (params?.page_size) searchParams.set('page_size', String(params.page_size))
+  const query = searchParams.toString()
+  const res = await fetch(`${API_BASE_URL}/vessel-registry${query ? `?${query}` : ''}`)
+  return res.json()
+}
+
+export async function getVesselRegistryDetail(vesselId: number): Promise<{ data: VesselRegistry }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}`)
+  return res.json()
+}
+
+export async function updateVesselRegistry(
+  vesselId: number,
+  update: VesselRegistryUpdate
+): Promise<{ message: string; data: VesselRegistry }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(update)
+  })
+  return res.json()
+}
+
+export async function getPorts(): Promise<{ data: { port: string; count: number }[] }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/ports/list`)
+  return res.json()
+}
+
+export async function getBusinessTypes(): Promise<{ data: { business_type: string; count: number }[] }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/business-types/list`)
+  return res.json()
+}
+
+export async function getGroups(): Promise<{ data: { group_name: string; count: number }[] }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/groups/list`)
+  return res.json()
+}
+
+export async function getVesselRegistryStatus(): Promise<{ count: number; has_data: boolean; message: string }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/status`)
+  return res.json()
+}
+
+export async function uploadVesselCSV(file: File, force: boolean = false): Promise<{ success: boolean; message: string; count: number }> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/upload-csv?force=${force}`, {
+    method: 'POST',
+    body: formData
+  })
+  return res.json()
+}
+
+// ---------- 어선 메모 API ----------
+
+export interface VesselMemo {
+  id: number
+  vessel_id: number
+  content: string
+  created_at: string
+  updated_at: string
+}
+
+export async function getVesselMemos(vesselId: number): Promise<{ data: VesselMemo[] }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}/memos`)
+  return res.json()
+}
+
+export async function createVesselMemo(vesselId: number, content: string): Promise<{ message: string; data: VesselMemo }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}/memos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content })
+  })
+  return res.json()
+}
+
+export async function updateVesselMemo(vesselId: number, memoId: number, content: string): Promise<{ message: string; data: VesselMemo }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}/memos/${memoId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content })
+  })
+  return res.json()
+}
+
+export async function deleteVesselMemo(vesselId: number, memoId: number): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}/memos/${memoId}`, {
+    method: 'DELETE'
+  })
+  return res.json()
+}
+
+// ---------- 어선 사진 API ----------
+
+export interface VesselPhoto {
+  id: number
+  vessel_id: number
+  filename: string
+  original_name: string
+  file_size: number
+  mime_type: string
+  is_primary: number
+  created_at: string
+}
+
+export async function getVesselPhotos(vesselId: number): Promise<{ data: VesselPhoto[] }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}/photos`)
+  return res.json()
+}
+
+export async function uploadVesselPhoto(vesselId: number, file: File, isPrimary: boolean = false): Promise<{ message: string; data: VesselPhoto }> {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('is_primary', isPrimary.toString())
+
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}/photos`, {
+    method: 'POST',
+    body: formData
+  })
+  return res.json()
+}
+
+export async function deleteVesselPhoto(vesselId: number, photoId: number): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}/photos/${photoId}`, {
+    method: 'DELETE'
+  })
+  return res.json()
+}
+
+export async function setPrimaryPhoto(vesselId: number, photoId: number): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}/photos/${photoId}/primary`, {
+    method: 'PUT'
+  })
+  return res.json()
+}
+
+export function getPhotoUrl(filename: string): string {
+  return `${API_BASE_URL}/uploads/photos/${filename}`
+}
+
+// ---------- 어선 관련 파일 API ----------
+
+export interface VesselFile {
+  id: number
+  vessel_id: number
+  filename: string
+  original_name: string
+  file_size: number
+  mime_type: string
+  description: string
+  created_at: string
+}
+
+export async function getVesselFiles(vesselId: number): Promise<{ data: VesselFile[] }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}/files`)
+  return res.json()
+}
+
+export async function uploadVesselFile(vesselId: number, file: File, description: string = ''): Promise<{ message: string; data: VesselFile }> {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('description', description)
+
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}/files`, {
+    method: 'POST',
+    body: formData
+  })
+  return res.json()
+}
+
+export async function deleteVesselFile(vesselId: number, fileId: number): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/${vesselId}/files/${fileId}`, {
+    method: 'DELETE'
+  })
+  return res.json()
+}
+
+export function getFileDownloadUrl(filename: string): string {
+  return `${API_BASE_URL}/uploads/files/${filename}`
 }

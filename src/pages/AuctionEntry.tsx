@@ -20,6 +20,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
+  Search,
+  Ship,
+  Calendar,
+  Plus,
+  Trash2,
+  Store,
+  Fish,
+  Banknote,
+  Calculator,
+  Receipt,
+  FileText,
+} from 'lucide-react'
+import {
   getVessels,
   getVoyages,
   getAuctions,
@@ -41,7 +54,6 @@ export default function AuctionEntry() {
   const [loading, setLoading] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
 
-  // 위판 입력 폼 상태
   const [auctionForm, setAuctionForm] = useState<Omit<AuctionCreate, 'voyage_id'>>({
     auction_date: new Date().toISOString().slice(0, 16),
     auction_port: '',
@@ -51,7 +63,6 @@ export default function AuctionEntry() {
     buyer: '',
   })
 
-  // 어선 검색
   const handleSearch = async () => {
     setLoading(true)
     try {
@@ -68,7 +79,6 @@ export default function AuctionEntry() {
     }
   }
 
-  // 어선 선택 시 항차 목록 조회
   const handleSelectVessel = async (vessel: VesselInfo) => {
     setSelectedVessel(vessel)
     setLoading(true)
@@ -84,7 +94,6 @@ export default function AuctionEntry() {
     }
   }
 
-  // 항차 선택 시 위판 목록 조회
   const handleSelectVoyage = async (voyage: VoyageData) => {
     setSelectedVoyage(voyage)
     setLoading(true)
@@ -98,7 +107,6 @@ export default function AuctionEntry() {
     }
   }
 
-  // 위판 등록 다이얼로그 열기
   const openAddDialog = () => {
     setAuctionForm({
       auction_date: new Date().toISOString().slice(0, 16),
@@ -111,7 +119,6 @@ export default function AuctionEntry() {
     setAddDialogOpen(true)
   }
 
-  // 위판 등록
   const handleAddAuction = async () => {
     if (!selectedVoyage) return
     setLoading(true)
@@ -120,7 +127,6 @@ export default function AuctionEntry() {
         voyage_id: selectedVoyage.id,
         ...auctionForm,
       })
-      // 목록 갱신
       const res = await getAuctions(selectedVoyage.id)
       setAuctions(res.data)
       setAddDialogOpen(false)
@@ -131,13 +137,11 @@ export default function AuctionEntry() {
     }
   }
 
-  // 위판 삭제
   const handleDeleteAuction = async (auctionId: string) => {
     if (!confirm('정말 삭제하시겠습니까?')) return
     setLoading(true)
     try {
       await deleteAuction(auctionId)
-      // 목록 갱신
       if (selectedVoyage) {
         const res = await getAuctions(selectedVoyage.id)
         setAuctions(res.data)
@@ -149,7 +153,6 @@ export default function AuctionEntry() {
     }
   }
 
-  // 초기 로드
   useEffect(() => {
     getVessels().then(res => setVessels(res.data))
   }, [])
@@ -162,178 +165,225 @@ export default function AuctionEntry() {
     return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(amount)
   }
 
-  // 총합 계산
   const totalQuantity = auctions.reduce((sum, a) => sum + a.quantity, 0)
   const totalAmount = auctions.reduce((sum, a) => sum + a.total_price, 0)
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* 페이지 헤더 */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center w-10 h-10 bg-primary/10 rounded-lg">
+          <Receipt className="h-5 w-5 text-primary" />
+        </div>
         <div>
-          <h2 className="text-2xl font-bold">위판 정보 입력</h2>
-          <p className="text-muted-foreground">어선을 검색하여 항차별 위판 정보를 등록합니다</p>
+          <h2 className="text-xl font-bold text-foreground">위판 정보 입력</h2>
+          <p className="text-sm text-muted-foreground">어선을 검색하여 항차별 위판 정보를 등록합니다</p>
         </div>
       </div>
 
-      {/* 검색 영역 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>어선 검색</CardTitle>
-          <CardDescription>MMSI 또는 어선명으로 검색하세요</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <Input
-              placeholder="MMSI 또는 어선명 입력"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="max-w-sm"
-            />
-            <Button onClick={handleSearch} disabled={loading}>
+      {/* 검색 카드 */}
+      <Card className="card-hover shadow-sm">
+        <CardContent className="pt-6">
+          <div className="flex gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="MMSI 또는 어선명으로 검색..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="pl-10"
+              />
+            </div>
+            <Button onClick={handleSearch} disabled={loading} className="gap-2">
+              <Search className="h-4 w-4" />
               검색
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-4">
+      <div className="grid gap-6 lg:grid-cols-12">
         {/* 어선 목록 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>어선 목록</CardTitle>
-            <CardDescription>총 {vessels.length}척</CardDescription>
+        <Card className="lg:col-span-2 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Ship className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base">어선</CardTitle>
+            </div>
+            <CardDescription>{vessels.length}척</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 max-h-[300px] overflow-auto">
+            <div className="space-y-2 max-h-[350px] overflow-auto pr-1">
               {vessels.map((vessel) => (
                 <div
                   key={vessel.mmsi}
                   onClick={() => handleSelectVessel(vessel)}
-                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                  className={`p-2.5 rounded-lg border-2 cursor-pointer transition-all ${
                     selectedVessel?.mmsi === vessel.mmsi
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-muted'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-transparent bg-muted/30 hover:bg-muted/50'
                   }`}
                 >
-                  <div className="font-medium">{vessel.vessel_name}</div>
-                  <div className="text-sm opacity-80">MMSI: {vessel.mmsi}</div>
+                  <div className="font-semibold text-sm">{vessel.vessel_name}</div>
+                  <div className="text-xs text-muted-foreground">{vessel.mmsi}</div>
                 </div>
               ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 항차 목록 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>항차 목록</CardTitle>
-            <CardDescription>
-              {selectedVessel ? `${selectedVessel.vessel_name}` : '어선 선택'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[300px] overflow-auto">
-              {voyages.map((voyage) => (
-                <div
-                  key={voyage.id}
-                  onClick={() => handleSelectVoyage(voyage)}
-                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                    selectedVoyage?.id === voyage.id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-muted'
-                  }`}
-                >
-                  <div className="font-medium text-sm">{voyage.id}</div>
-                  <div className="text-xs opacity-80">
-                    {voyage.fishing_area} | {voyage.status}
-                  </div>
-                </div>
-              ))}
-              {selectedVessel && voyages.length === 0 && (
-                <p className="text-muted-foreground text-center py-4 text-sm">항차 없음</p>
+              {vessels.length === 0 && (
+                <p className="text-muted-foreground text-center py-6 text-xs">검색 필요</p>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* 위판 목록 */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
+        {/* 항차 목록 */}
+        <Card className="lg:col-span-2 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base">항차</CardTitle>
+            </div>
+            <CardDescription>
+              {selectedVessel ? selectedVessel.vessel_name : '선택'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-[350px] overflow-auto pr-1">
+              {voyages.map((voyage) => (
+                <div
+                  key={voyage.id}
+                  onClick={() => handleSelectVoyage(voyage)}
+                  className={`p-2.5 rounded-lg border-2 cursor-pointer transition-all ${
+                    selectedVoyage?.id === voyage.id
+                      ? 'border-primary bg-primary/5'
+                      : 'border-transparent bg-muted/30 hover:bg-muted/50'
+                  }`}
+                >
+                  <div className="font-mono text-xs font-medium">{voyage.id.split('-').slice(1).join('-')}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{voyage.fishing_area}</div>
+                </div>
+              ))}
+              {selectedVessel && voyages.length === 0 && (
+                <p className="text-muted-foreground text-center py-6 text-xs">없음</p>
+              )}
+              {!selectedVessel && (
+                <p className="text-muted-foreground text-center py-6 text-xs">어선 선택</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 위판 내역 */}
+        <Card className="lg:col-span-8 shadow-sm">
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>위판 내역</CardTitle>
-                <CardDescription>
-                  {selectedVoyage ? selectedVoyage.id : '항차를 선택하세요'}
-                </CardDescription>
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-primary" />
+                <CardTitle className="text-base">위판 내역</CardTitle>
+                {selectedVoyage && (
+                  <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                    {selectedVoyage.id}
+                  </span>
+                )}
               </div>
               {selectedVoyage && (
-                <Button onClick={openAddDialog}>위판 등록</Button>
+                <Button onClick={openAddDialog} size="sm" className="gap-1.5">
+                  <Plus className="h-4 w-4" />
+                  위판 등록
+                </Button>
               )}
             </div>
           </CardHeader>
           <CardContent>
             {selectedVoyage ? (
               <>
-                <div className="max-h-[250px] overflow-auto">
+                <div className="rounded-lg border overflow-hidden">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>위판일시</TableHead>
-                        <TableHead>위판장</TableHead>
-                        <TableHead>어종</TableHead>
-                        <TableHead className="text-right">수량(kg)</TableHead>
-                        <TableHead className="text-right">단가</TableHead>
-                        <TableHead className="text-right">금액</TableHead>
-                        <TableHead></TableHead>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="font-semibold text-xs">위판일시</TableHead>
+                        <TableHead className="font-semibold text-xs">
+                          <div className="flex items-center gap-1">
+                            <Store className="h-3 w-3" /> 위판장
+                          </div>
+                        </TableHead>
+                        <TableHead className="font-semibold text-xs">
+                          <div className="flex items-center gap-1">
+                            <Fish className="h-3 w-3" /> 어종
+                          </div>
+                        </TableHead>
+                        <TableHead className="font-semibold text-xs text-right">수량</TableHead>
+                        <TableHead className="font-semibold text-xs text-right">단가</TableHead>
+                        <TableHead className="font-semibold text-xs text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Banknote className="h-3 w-3" /> 금액
+                          </div>
+                        </TableHead>
+                        <TableHead className="w-16"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {auctions.map((auction) => (
-                        <TableRow key={auction.id}>
+                        <TableRow key={auction.id} className="hover:bg-muted/30">
                           <TableCell className="text-sm">{formatDate(auction.auction_date)}</TableCell>
-                          <TableCell>{auction.auction_port}</TableCell>
-                          <TableCell>{auction.fish_species}</TableCell>
-                          <TableCell className="text-right">{auction.quantity.toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(auction.unit_price)}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(auction.total_price)}</TableCell>
+                          <TableCell className="text-sm">{auction.auction_port}</TableCell>
+                          <TableCell className="text-sm font-medium">{auction.fish_species}</TableCell>
+                          <TableCell className="text-sm text-right font-mono">{auction.quantity.toLocaleString()} kg</TableCell>
+                          <TableCell className="text-sm text-right font-mono">{formatCurrency(auction.unit_price)}</TableCell>
+                          <TableCell className="text-sm text-right font-mono font-semibold text-primary">
+                            {formatCurrency(auction.total_price)}
+                          </TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
                               onClick={() => handleDeleteAuction(auction.id)}
-                              className="text-destructive hover:text-destructive"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
                             >
-                              삭제
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </TableCell>
                         </TableRow>
                       ))}
                       {auctions.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                            등록된 위판 내역이 없습니다
+                          <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
+                            <Receipt className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                            <p className="text-sm">등록된 위판 내역이 없습니다</p>
                           </TableCell>
                         </TableRow>
                       )}
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* 합계 */}
                 {auctions.length > 0 && (
-                  <div className="mt-4 pt-4 border-t flex justify-end gap-8">
-                    <div>
-                      <span className="text-muted-foreground">총 수량: </span>
-                      <span className="font-bold">{totalQuantity.toLocaleString()} kg</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">총 금액: </span>
-                      <span className="font-bold">{formatCurrency(totalAmount)}</span>
+                  <div className="mt-4 p-4 bg-gradient-to-r from-primary/5 to-accent/5 rounded-xl border border-primary/10">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calculator className="h-4 w-4" />
+                        합계
+                      </div>
+                      <div className="flex gap-8">
+                        <div className="text-right">
+                          <div className="text-xs text-muted-foreground">총 수량</div>
+                          <div className="text-lg font-bold">{totalQuantity.toLocaleString()} kg</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs text-muted-foreground">총 금액</div>
+                          <div className="text-lg font-bold text-primary">{formatCurrency(totalAmount)}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
               </>
             ) : (
-              <p className="text-muted-foreground text-center py-8">항차를 선택하세요</p>
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <Receipt className="h-12 w-12 mb-3 opacity-30" />
+                <p className="text-sm">항차를 선택하면 위판 내역이 표시됩니다</p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -341,29 +391,34 @@ export default function AuctionEntry() {
 
       {/* 위판 등록 다이얼로그 */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>위판 정보 등록</DialogTitle>
-            <DialogDescription>{selectedVoyage?.id}</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-primary" />
+              위판 정보 등록
+            </DialogTitle>
+            <DialogDescription className="font-mono">{selectedVoyage?.id}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="auction_date">위판일시</Label>
-              <Input
-                id="auction_date"
-                type="datetime-local"
-                value={auctionForm.auction_date}
-                onChange={(e) => setAuctionForm({ ...auctionForm, auction_date: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="auction_port">위판장</Label>
-              <Input
-                id="auction_port"
-                placeholder="예: 부산공동어시장"
-                value={auctionForm.auction_port}
-                onChange={(e) => setAuctionForm({ ...auctionForm, auction_port: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="auction_date">위판일시</Label>
+                <Input
+                  id="auction_date"
+                  type="datetime-local"
+                  value={auctionForm.auction_date}
+                  onChange={(e) => setAuctionForm({ ...auctionForm, auction_date: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="auction_port">위판장</Label>
+                <Input
+                  id="auction_port"
+                  placeholder="예: 부산공동어시장"
+                  value={auctionForm.auction_port}
+                  onChange={(e) => setAuctionForm({ ...auctionForm, auction_port: e.target.value })}
+                />
+              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="fish_species">어종</Label>
@@ -403,16 +458,27 @@ export default function AuctionEntry() {
                 onChange={(e) => setAuctionForm({ ...auctionForm, buyer: e.target.value })}
               />
             </div>
-            <div className="p-3 bg-muted rounded-lg">
-              <div className="text-sm text-muted-foreground">예상 금액</div>
-              <div className="text-lg font-bold">
-                {formatCurrency(auctionForm.quantity * auctionForm.unit_price)}
+            {/* 예상 금액 미리보기 */}
+            <div className="p-4 bg-gradient-to-r from-primary/10 to-accent/10 rounded-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calculator className="h-4 w-4" />
+                  예상 금액
+                </div>
+                <div className="text-2xl font-bold text-primary">
+                  {formatCurrency(auctionForm.quantity * auctionForm.unit_price)}
+                </div>
               </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>취소</Button>
-            <Button onClick={handleAddAuction} disabled={loading || !auctionForm.auction_port || !auctionForm.fish_species}>
+            <Button
+              onClick={handleAddAuction}
+              disabled={loading || !auctionForm.auction_port || !auctionForm.fish_species}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
               등록
             </Button>
           </DialogFooter>

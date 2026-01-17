@@ -31,3 +31,11 @@ __pycache__/
 venv/
 .venv/
 .env
+
+# Database
+*.db
+backend/uploads/
+backend/nul
+
+# Data files
+*.csv

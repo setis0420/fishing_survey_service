@@ -20,6 +20,20 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
+  Search,
+  Ship,
+  Navigation,
+  MapPin,
+  Calendar,
+  Fish,
+  Edit3,
+  Eye,
+  Compass,
+  Gauge,
+  Clock,
+  Anchor,
+} from 'lucide-react'
+import {
   getVessels,
   getVoyages,
   getVoyage,
@@ -39,7 +53,6 @@ export default function VoyageInquiry() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [trackDialogOpen, setTrackDialogOpen] = useState(false)
 
-  // 수정 폼 상태
   const [editForm, setEditForm] = useState({
     fishing_area: '',
     catch_amount: 0,
@@ -47,7 +60,6 @@ export default function VoyageInquiry() {
     status: '',
   })
 
-  // 어선 검색
   const handleSearch = async () => {
     setLoading(true)
     try {
@@ -63,7 +75,6 @@ export default function VoyageInquiry() {
     }
   }
 
-  // 어선 선택 시 항차 목록 조회
   const handleSelectVessel = async (vessel: VesselInfo) => {
     setSelectedVessel(vessel)
     setLoading(true)
@@ -78,7 +89,6 @@ export default function VoyageInquiry() {
     }
   }
 
-  // 항차 선택 시 상세 조회
   const handleSelectVoyage = async (voyage: VoyageData) => {
     setLoading(true)
     try {
@@ -91,7 +101,6 @@ export default function VoyageInquiry() {
     }
   }
 
-  // 수정 다이얼로그 열기
   const openEditDialog = () => {
     if (selectedVoyage) {
       setEditForm({
@@ -104,14 +113,12 @@ export default function VoyageInquiry() {
     }
   }
 
-  // 수정 저장
   const handleSaveEdit = async () => {
     if (!selectedVoyage) return
     setLoading(true)
     try {
       const res = await updateVoyage(selectedVoyage.id, editForm)
       setSelectedVoyage(res.data)
-      // 항차 목록도 갱신
       if (selectedVessel) {
         const voyagesRes = await getVoyages({ mmsi: selectedVessel.mmsi })
         setVoyages(voyagesRes.data)
@@ -124,7 +131,6 @@ export default function VoyageInquiry() {
     }
   }
 
-  // 초기 로드
   useEffect(() => {
     getVessels().then(res => setVessels(res.data))
   }, [])
@@ -134,163 +140,232 @@ export default function VoyageInquiry() {
     return new Date(dateStr).toLocaleString('ko-KR')
   }
 
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case '완료':
+        return 'status-badge status-complete'
+      case '조업중':
+        return 'status-badge status-active'
+      default:
+        return 'status-badge status-pending'
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* 페이지 헤더 */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center w-10 h-10 bg-primary/10 rounded-lg">
+          <Navigation className="h-5 w-5 text-primary" />
+        </div>
         <div>
-          <h2 className="text-2xl font-bold">항적 및 어획정보 조회/수정</h2>
-          <p className="text-muted-foreground">어선을 검색하여 항차별 항적과 어획 정보를 확인하고 수정합니다</p>
+          <h2 className="text-xl font-bold text-foreground">항적 및 어획정보 조회/수정</h2>
+          <p className="text-sm text-muted-foreground">어선을 검색하여 항차별 항적과 어획 정보를 확인하고 수정합니다</p>
         </div>
       </div>
 
-      {/* 검색 영역 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>어선 검색</CardTitle>
-          <CardDescription>MMSI 또는 어선명으로 검색하세요</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <Input
-              placeholder="MMSI 또는 어선명 입력"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="max-w-sm"
-            />
-            <Button onClick={handleSearch} disabled={loading}>
+      {/* 검색 카드 */}
+      <Card className="card-hover shadow-sm">
+        <CardContent className="pt-6">
+          <div className="flex gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="MMSI 또는 어선명으로 검색..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="pl-10"
+              />
+            </div>
+            <Button onClick={handleSearch} disabled={loading} className="gap-2">
+              <Search className="h-4 w-4" />
               검색
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-12">
         {/* 어선 목록 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>어선 목록</CardTitle>
+        <Card className="lg:col-span-3 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Ship className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base">어선 목록</CardTitle>
+            </div>
             <CardDescription>총 {vessels.length}척</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 max-h-[400px] overflow-auto">
+            <div className="space-y-2 max-h-[450px] overflow-auto pr-1">
               {vessels.map((vessel) => (
                 <div
                   key={vessel.mmsi}
                   onClick={() => handleSelectVessel(vessel)}
-                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                  className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
                     selectedVessel?.mmsi === vessel.mmsi
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-muted'
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-transparent bg-muted/30 hover:bg-muted/50 hover:border-border'
                   }`}
                 >
-                  <div className="font-medium">{vessel.vessel_name}</div>
-                  <div className="text-sm opacity-80">MMSI: {vessel.mmsi}</div>
-                  <div className="text-sm opacity-80">{vessel.vessel_type} | {vessel.tonnage}t</div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${selectedVessel?.mmsi === vessel.mmsi ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
+                    <span className="font-semibold text-sm">{vessel.vessel_name}</span>
+                  </div>
+                  <div className="mt-1 ml-4 text-xs text-muted-foreground space-y-0.5">
+                    <div>MMSI: {vessel.mmsi}</div>
+                    <div>{vessel.vessel_type} · {vessel.tonnage}t</div>
+                  </div>
                 </div>
               ))}
+              {vessels.length === 0 && (
+                <p className="text-muted-foreground text-center py-8 text-sm">어선을 검색해주세요</p>
+              )}
             </div>
           </CardContent>
         </Card>
 
         {/* 항차 목록 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>항차 목록</CardTitle>
+        <Card className="lg:col-span-3 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base">항차 목록</CardTitle>
+            </div>
             <CardDescription>
-              {selectedVessel ? `${selectedVessel.vessel_name}의 항차` : '어선을 선택하세요'}
+              {selectedVessel ? selectedVessel.vessel_name : '어선을 선택하세요'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 max-h-[400px] overflow-auto">
+            <div className="space-y-2 max-h-[450px] overflow-auto pr-1">
               {voyages.map((voyage) => (
                 <div
                   key={voyage.id}
                   onClick={() => handleSelectVoyage(voyage)}
-                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                  className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
                     selectedVoyage?.id === voyage.id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-muted'
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-transparent bg-muted/30 hover:bg-muted/50 hover:border-border'
                   }`}
                 >
-                  <div className="font-medium">{voyage.id}</div>
-                  <div className="text-sm opacity-80">
-                    {voyage.departure_port} → {voyage.arrival_port || '조업중'}
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-sm font-medium">{voyage.id.split('-').slice(1).join('-')}</span>
+                    <span className={getStatusStyle(voyage.status)}>{voyage.status}</span>
                   </div>
-                  <div className="text-sm opacity-80">
-                    <span className={`inline-block px-2 py-0.5 rounded text-xs ${
-                      voyage.status === '완료' ? 'bg-green-500/20' :
-                      voyage.status === '조업중' ? 'bg-blue-500/20' : 'bg-gray-500/20'
-                    }`}>
-                      {voyage.status}
-                    </span>
+                  <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                    <MapPin className="h-3 w-3" />
+                    {voyage.departure_port} → {voyage.arrival_port || '...'}
+                  </div>
+                  <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                    <Fish className="h-3 w-3" />
+                    {voyage.catch_amount.toLocaleString()} kg
                   </div>
                 </div>
               ))}
               {selectedVessel && voyages.length === 0 && (
-                <p className="text-muted-foreground text-center py-4">항차 데이터가 없습니다</p>
+                <p className="text-muted-foreground text-center py-8 text-sm">항차 데이터가 없습니다</p>
+              )}
+              {!selectedVessel && (
+                <p className="text-muted-foreground text-center py-8 text-sm">어선을 선택하세요</p>
               )}
             </div>
           </CardContent>
         </Card>
 
         {/* 항차 상세 정보 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>항차 상세 정보</CardTitle>
+        <Card className="lg:col-span-6 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Compass className="h-4 w-4 text-primary" />
+                <CardTitle className="text-base">항차 상세 정보</CardTitle>
+              </div>
+              {selectedVoyage && (
+                <span className={getStatusStyle(selectedVoyage.status)}>{selectedVoyage.status}</span>
+              )}
+            </div>
             <CardDescription>
-              {selectedVoyage ? selectedVoyage.id : '항차를 선택하세요'}
+              {selectedVoyage ? (
+                <span className="font-mono">{selectedVoyage.id}</span>
+              ) : '항차를 선택하세요'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {selectedVoyage ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <Label className="text-muted-foreground">출항일시</Label>
-                    <p>{formatDate(selectedVoyage.departure_date)}</p>
+              <div className="space-y-6">
+                {/* 기본 정보 그리드 */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-3 bg-muted/30 rounded-lg">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                      <Clock className="h-3 w-3" />
+                      출항일시
+                    </div>
+                    <p className="text-sm font-medium">{formatDate(selectedVoyage.departure_date)}</p>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">입항일시</Label>
-                    <p>{formatDate(selectedVoyage.arrival_date)}</p>
+                  <div className="p-3 bg-muted/30 rounded-lg">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                      <Clock className="h-3 w-3" />
+                      입항일시
+                    </div>
+                    <p className="text-sm font-medium">{formatDate(selectedVoyage.arrival_date)}</p>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">출항지</Label>
-                    <p>{selectedVoyage.departure_port}</p>
+                  <div className="p-3 bg-muted/30 rounded-lg">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                      <Anchor className="h-3 w-3" />
+                      출항지
+                    </div>
+                    <p className="text-sm font-medium">{selectedVoyage.departure_port}</p>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">입항지</Label>
-                    <p>{selectedVoyage.arrival_port || '-'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">조업해역</Label>
-                    <p>{selectedVoyage.fishing_area}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">상태</Label>
-                    <p>{selectedVoyage.status}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">어획량</Label>
-                    <p>{selectedVoyage.catch_amount.toLocaleString()} kg</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">어종</Label>
-                    <p>{selectedVoyage.fish_species || '-'}</p>
+                  <div className="p-3 bg-muted/30 rounded-lg">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                      <Anchor className="h-3 w-3" />
+                      입항지
+                    </div>
+                    <p className="text-sm font-medium">{selectedVoyage.arrival_port || '-'}</p>
                   </div>
                 </div>
 
-                <div className="flex gap-2 pt-4">
-                  <Button onClick={openEditDialog} className="flex-1">
+                {/* 어획 정보 */}
+                <div className="p-4 bg-gradient-to-br from-primary/5 to-accent/5 rounded-xl border border-primary/10">
+                  <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <Fish className="h-4 w-4 text-primary" />
+                    어획 정보
+                  </h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <div className="text-xs text-muted-foreground">조업해역</div>
+                      <p className="text-sm font-medium mt-0.5">{selectedVoyage.fishing_area}</p>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">어획량</div>
+                      <p className="text-lg font-bold text-primary mt-0.5">
+                        {selectedVoyage.catch_amount.toLocaleString()} <span className="text-sm font-normal">kg</span>
+                      </p>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">어종</div>
+                      <p className="text-sm font-medium mt-0.5">{selectedVoyage.fish_species || '-'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 버튼 그룹 */}
+                <div className="flex gap-3">
+                  <Button onClick={openEditDialog} className="flex-1 gap-2">
+                    <Edit3 className="h-4 w-4" />
                     정보 수정
                   </Button>
-                  <Button variant="outline" onClick={() => setTrackDialogOpen(true)} className="flex-1">
+                  <Button variant="outline" onClick={() => setTrackDialogOpen(true)} className="flex-1 gap-2">
+                    <Eye className="h-4 w-4" />
                     항적 보기
                   </Button>
                 </div>
               </div>
             ) : (
-              <p className="text-muted-foreground text-center py-8">항차를 선택하세요</p>
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <Navigation className="h-12 w-12 mb-3 opacity-30" />
+                <p className="text-sm">항차를 선택하면 상세 정보가 표시됩니다</p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -298,10 +373,13 @@ export default function VoyageInquiry() {
 
       {/* 수정 다이얼로그 */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>항차 정보 수정</DialogTitle>
-            <DialogDescription>{selectedVoyage?.id}</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit3 className="h-5 w-5 text-primary" />
+              항차 정보 수정
+            </DialogTitle>
+            <DialogDescription className="font-mono">{selectedVoyage?.id}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
@@ -335,7 +413,7 @@ export default function VoyageInquiry() {
                 id="status"
                 value={editForm.status}
                 onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2"
+                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="조업중">조업중</option>
                 <option value="입항">입항</option>
@@ -352,30 +430,53 @@ export default function VoyageInquiry() {
 
       {/* 항적 다이얼로그 */}
       <Dialog open={trackDialogOpen} onOpenChange={setTrackDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>항적 정보</DialogTitle>
-            <DialogDescription>{selectedVoyage?.id}</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <Navigation className="h-5 w-5 text-primary" />
+              항적 정보
+            </DialogTitle>
+            <DialogDescription className="font-mono">{selectedVoyage?.id}</DialogDescription>
           </DialogHeader>
-          <div className="max-h-[400px] overflow-auto">
+          <div className="max-h-[400px] overflow-auto rounded-lg border">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>시각</TableHead>
-                  <TableHead>위도</TableHead>
-                  <TableHead>경도</TableHead>
-                  <TableHead>속력 (kn)</TableHead>
-                  <TableHead>침로 (°)</TableHead>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="font-semibold">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" /> 시각
+                    </div>
+                  </TableHead>
+                  <TableHead className="font-semibold">
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" /> 위도
+                    </div>
+                  </TableHead>
+                  <TableHead className="font-semibold">
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" /> 경도
+                    </div>
+                  </TableHead>
+                  <TableHead className="font-semibold">
+                    <div className="flex items-center gap-1">
+                      <Gauge className="h-3 w-3" /> 속력
+                    </div>
+                  </TableHead>
+                  <TableHead className="font-semibold">
+                    <div className="flex items-center gap-1">
+                      <Compass className="h-3 w-3" /> 침로
+                    </div>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {selectedVoyage?.track_points.map((point: TrackPoint, idx: number) => (
-                  <TableRow key={idx}>
-                    <TableCell>{formatDate(point.timestamp)}</TableCell>
-                    <TableCell>{point.latitude.toFixed(4)}</TableCell>
-                    <TableCell>{point.longitude.toFixed(4)}</TableCell>
-                    <TableCell>{point.speed}</TableCell>
-                    <TableCell>{point.course}</TableCell>
+                  <TableRow key={idx} className="hover:bg-muted/30">
+                    <TableCell className="text-sm">{formatDate(point.timestamp)}</TableCell>
+                    <TableCell className="font-mono text-sm">{point.latitude.toFixed(4)}°</TableCell>
+                    <TableCell className="font-mono text-sm">{point.longitude.toFixed(4)}°</TableCell>
+                    <TableCell className="font-mono text-sm">{point.speed} kn</TableCell>
+                    <TableCell className="font-mono text-sm">{point.course}°</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

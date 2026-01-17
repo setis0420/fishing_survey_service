@@ -4,13 +4,32 @@
 
 ## 주요 기능
 
-### 1. 항적/어획 조회·수정
+### 1. 어선정보 관리 (전국어선정보)
+- 전국어선정보 CSV 업로드 및 관리
+- 어선 검색 (선명, MMSI, 등록번호)
+- 필터링 (선적항, 업종, 그룹)
+- 그룹 관리 (피해선박 등 그룹으로 분류)
+- 어선별 상세정보 조회/수정
+- **메모 기능**: 어선별 메모 작성/수정/삭제
+- **사진 관리**:
+  - 드래그 앤 드롭 업로드
+  - 여러 파일 동시 업로드
+  - 대표 사진 설정
+  - JPG, PNG, GIF, WEBP 지원
+- **파일 관리**:
+  - 드래그 앤 드롭 업로드
+  - 파일 설명 입력
+  - 모든 파일 형식 지원
+  - 다운로드 기능
+- **목록에서 사진/파일 갯수 표시**
+
+### 2. 항적/어획 조회·수정
 - 어선 검색 (MMSI, 어선명)
 - 항차별 항적 정보 조회 (위도, 경도, 속력, 침로)
 - 어획 정보 확인 및 수정 (어획량, 어종, 조업해역)
 - 데이터 형식: `[MMSI]-[연도]-[항차]` (예: 440001234-2025-001)
 
-### 2. 위판 정보 입력
+### 3. 위판 정보 입력
 - 항차별 위판 내역 등록/삭제
 - 위판장, 어종, 수량, 단가 입력
 - 총 수량 및 금액 자동 계산
@@ -26,6 +45,7 @@
 
 ### 백엔드
 - **FastAPI** (Python)
+- **SQLite** (데이터베이스)
 - **Pydantic** (데이터 검증)
 
 ## 프로젝트 구조
@@ -35,6 +55,7 @@ fishing-platform/
 ├── src/
 │   ├── components/ui/          # shadcn/ui 컴포넌트
 │   ├── pages/
+│   │   ├── VesselRegistry.tsx  # 어선정보 관리 (메모, 사진, 파일)
 │   │   ├── VoyageInquiry.tsx   # 항적/어획 조회·수정
 │   │   └── AuctionEntry.tsx    # 위판 정보 입력
 │   ├── lib/
@@ -45,6 +66,11 @@ fishing-platform/
 │
 ├── backend/
 │   ├── main.py                 # FastAPI 서버
+│   ├── database.py             # SQLite 데이터베이스 설정
+│   ├── fishing.db              # SQLite 데이터베이스 파일
+│   ├── uploads/
+│   │   ├── photos/             # 어선 사진 저장
+│   │   └── files/              # 어선 관련 파일 저장
 │   └── requirements.txt        # Python 의존성
 │
 └── package.json
@@ -91,6 +117,41 @@ npm run dev
 |--------|-----------|------|
 | GET | `/api/vessels` | 어선 목록 조회 |
 | GET | `/api/vessels/{mmsi}` | 특정 어선 정보 조회 |
+
+### 어선정보 관리 API (전국어선정보)
+| 메서드 | 엔드포인트 | 설명 |
+|--------|-----------|------|
+| GET | `/api/vessel-registry` | 어선 목록 조회 (페이지네이션, 검색, 필터링, 사진/파일 갯수 포함) |
+| POST | `/api/vessel-registry/upload` | CSV 파일 업로드 |
+| GET | `/api/vessel-registry/{id}` | 어선 상세 조회 |
+| PUT | `/api/vessel-registry/{id}` | 어선 정보 수정 |
+| DELETE | `/api/vessel-registry/{id}` | 어선 삭제 |
+| GET | `/api/vessel-registry/groups` | 그룹 목록 조회 |
+| PUT | `/api/vessel-registry/{id}/group` | 어선 그룹 변경 |
+
+### 어선 메모 API
+| 메서드 | 엔드포인트 | 설명 |
+|--------|-----------|------|
+| GET | `/api/vessel-registry/{id}/memos` | 어선 메모 목록 조회 |
+| POST | `/api/vessel-registry/{id}/memos` | 메모 추가 |
+| PUT | `/api/vessel-registry/{id}/memos/{memo_id}` | 메모 수정 |
+| DELETE | `/api/vessel-registry/{id}/memos/{memo_id}` | 메모 삭제 |
+
+### 어선 사진 API
+| 메서드 | 엔드포인트 | 설명 |
+|--------|-----------|------|
+| GET | `/api/vessel-registry/{id}/photos` | 어선 사진 목록 조회 |
+| POST | `/api/vessel-registry/{id}/photos` | 사진 업로드 (다중 파일 지원) |
+| PUT | `/api/vessel-registry/{id}/photos/{photo_id}/primary` | 대표 사진 설정 |
+| DELETE | `/api/vessel-registry/{id}/photos/{photo_id}` | 사진 삭제 |
+
+### 어선 파일 API
+| 메서드 | 엔드포인트 | 설명 |
+|--------|-----------|------|
+| GET | `/api/vessel-registry/{id}/files` | 어선 파일 목록 조회 |
+| POST | `/api/vessel-registry/{id}/files` | 파일 업로드 (설명 포함) |
+| GET | `/api/vessel-registry/{id}/files/{file_id}/download` | 파일 다운로드 |
+| DELETE | `/api/vessel-registry/{id}/files/{file_id}` | 파일 삭제 |
 
 ### 항차 API
 | 메서드 | 엔드포인트 | 설명 |
