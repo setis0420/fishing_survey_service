@@ -57,6 +57,7 @@ import {
   Plus,
   X,
   Users,
+  Clock,
 } from 'lucide-react'
 import {
   getVesselRegistry,
@@ -203,6 +204,7 @@ export default function VesselRegistryPage() {
       business_type: vessel.business_type ?? undefined,
       mmsi: vessel.mmsi ?? undefined,
       group_name: vessel.group_name ?? undefined,
+      fishing_hours: vessel.fishing_hours ?? undefined,
     })
     setEditDialogOpen(true)
   }
@@ -499,6 +501,7 @@ export default function VesselRegistryPage() {
                   <TableHead className="font-semibold text-xs">선적항</TableHead>
                   <TableHead className="font-semibold text-xs">업종</TableHead>
                   <TableHead className="font-semibold text-xs">그룹</TableHead>
+                  <TableHead className="font-semibold text-xs text-right">조업시간</TableHead>
                   <TableHead className="font-semibold text-xs text-center">사진</TableHead>
                   <TableHead className="font-semibold text-xs text-center">파일</TableHead>
                   <TableHead className="w-[100px]"></TableHead>
@@ -514,7 +517,27 @@ export default function VesselRegistryPage() {
                     <TableCell className="text-right font-mono">{vessel.length?.toFixed(1) || '-'}</TableCell>
                     <TableCell className="text-xs truncate max-w-[150px]">{vessel.port || '-'}</TableCell>
                     <TableCell className="text-xs truncate max-w-[120px]">{vessel.business_type || '-'}</TableCell>
-                    <TableCell className="text-xs">{vessel.group_name || '-'}</TableCell>
+                    <TableCell className="text-xs">
+                      {vessel.group_name ? (
+                        <div className="flex flex-wrap gap-1">
+                          {vessel.group_name.split(',').map((g, idx) => {
+                            const groupName = g.trim()
+                            if (!groupName) return null
+                            return (
+                              <span
+                                key={idx}
+                                className="inline-block px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[10px]"
+                              >
+                                {groupName}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      ) : '-'}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {vessel.fishing_hours ? `${vessel.fishing_hours.toFixed(1)}h` : '-'}
+                    </TableCell>
                     <TableCell className="text-center">
                       {vessel.photo_count ? (
                         <span className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
@@ -549,7 +572,7 @@ export default function VesselRegistryPage() {
                 ))}
                 {vessels.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-muted-foreground py-12">
+                    <TableCell colSpan={12} className="text-center text-muted-foreground py-12">
                       <Ship className="h-8 w-8 mx-auto mb-2 opacity-30" />
                       <p className="text-sm">검색 결과가 없습니다</p>
                     </TableCell>
@@ -647,7 +670,32 @@ export default function VesselRegistryPage() {
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">그룹</Label>
-                      <p>{selectedVessel.group_name || '-'}</p>
+                      {selectedVessel.group_name ? (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {selectedVessel.group_name.split(',').map((g, idx) => {
+                            const groupName = g.trim()
+                            if (!groupName) return null
+                            return (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs"
+                              >
+                                <Users className="h-3 w-3" />
+                                {groupName}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <p>-</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">조업시간</Label>
+                      <p className="font-mono flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-muted-foreground" />
+                        {selectedVessel.fishing_hours ? `${selectedVessel.fishing_hours.toFixed(1)} 시간` : '-'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1140,12 +1188,114 @@ export default function VesselRegistryPage() {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="group_name">그룹</Label>
+              <Label htmlFor="group_name">그룹 (여러 개 선택 가능)</Label>
+              {/* 현재 선택된 그룹 태그 표시 */}
+              {editForm.group_name && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {editForm.group_name.split(',').map((g, idx) => {
+                    const groupName = g.trim()
+                    if (!groupName) return null
+                    return (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full text-xs"
+                      >
+                        {groupName}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentGroups = editForm.group_name?.split(',').map(s => s.trim()).filter(Boolean) || []
+                            const newGroups = currentGroups.filter((_, i) => i !== idx)
+                            setEditForm({ ...editForm, group_name: newGroups.join(', ') || undefined })
+                          }}
+                          className="hover:bg-primary/20 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
+              {/* 기존 그룹 선택 드롭다운 */}
+              <Select
+                value=""
+                onValueChange={(value) => {
+                  if (!value) return
+                  const currentGroups = editForm.group_name?.split(',').map(s => s.trim()).filter(Boolean) || []
+                  if (!currentGroups.includes(value)) {
+                    const newGroups = [...currentGroups, value]
+                    setEditForm({ ...editForm, group_name: newGroups.join(', ') })
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="기존 그룹에서 선택..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {groups.map((g) => (
+                    <SelectItem key={g.group_name} value={g.group_name}>
+                      {g.group_name} ({g.count})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {/* 새 그룹 입력 */}
+              <div className="flex gap-2">
+                <Input
+                  id="new_group_input"
+                  placeholder="새 그룹명 직접 입력..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      const input = e.currentTarget
+                      const newGroup = input.value.trim()
+                      if (newGroup) {
+                        const currentGroups = editForm.group_name?.split(',').map(s => s.trim()).filter(Boolean) || []
+                        if (!currentGroups.includes(newGroup)) {
+                          const newGroups = [...currentGroups, newGroup]
+                          setEditForm({ ...editForm, group_name: newGroups.join(', ') })
+                        }
+                        input.value = ''
+                      }
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const input = document.getElementById('new_group_input') as HTMLInputElement
+                    const newGroup = input?.value.trim()
+                    if (newGroup) {
+                      const currentGroups = editForm.group_name?.split(',').map(s => s.trim()).filter(Boolean) || []
+                      if (!currentGroups.includes(newGroup)) {
+                        const newGroups = [...currentGroups, newGroup]
+                        setEditForm({ ...editForm, group_name: newGroups.join(', ') })
+                      }
+                      input.value = ''
+                    }
+                  }}
+                  className="shrink-0"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Enter 키 또는 + 버튼으로 새 그룹 추가
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="fishing_hours">조업시간 (시간)</Label>
               <Input
-                id="group_name"
-                placeholder="그룹명 입력 (예: 피해선박A, 조사대상1)"
-                value={editForm.group_name || ''}
-                onChange={(e) => setEditForm({ ...editForm, group_name: e.target.value })}
+                id="fishing_hours"
+                type="number"
+                step="0.1"
+                placeholder="예: 120.5"
+                value={editForm.fishing_hours || ''}
+                onChange={(e) => setEditForm({ ...editForm, fishing_hours: parseFloat(e.target.value) || undefined })}
               />
             </div>
           </div>

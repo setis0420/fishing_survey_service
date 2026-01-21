@@ -50,16 +50,19 @@ def init_db():
                 license_start_province TEXT,
                 license_end_province TEXT,
                 group_name TEXT,
+                fishing_hours REAL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
-        # group_name 컬럼이 없으면 추가 (기존 DB 마이그레이션)
+        # 컬럼이 없으면 추가 (기존 DB 마이그레이션)
         cursor.execute("PRAGMA table_info(vessel_registry)")
         columns = [col[1] for col in cursor.fetchall()]
         if 'group_name' not in columns:
             cursor.execute("ALTER TABLE vessel_registry ADD COLUMN group_name TEXT")
+        if 'fishing_hours' not in columns:
+            cursor.execute("ALTER TABLE vessel_registry ADD COLUMN fishing_hours REAL")
 
         # 항차 테이블
         cursor.execute("""

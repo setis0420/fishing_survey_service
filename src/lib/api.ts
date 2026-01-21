@@ -1,4 +1,5 @@
-const API_BASE_URL = 'http://localhost:8000/api'
+// Vite 프록시를 통해 API 호출 (외부 접속 지원)
+const API_BASE_URL = '/api'
 
 // ==================== 타입 정의 ====================
 
@@ -26,6 +27,7 @@ export interface VesselRegistry {
   license_start_province?: string
   license_end_province?: string
   group_name?: string
+  fishing_hours?: number
   created_at?: string
   updated_at?: string
   photo_count?: number
@@ -48,6 +50,7 @@ export interface VesselRegistryUpdate {
   license_start_local?: string
   license_end_local?: string
   group_name?: string
+  fishing_hours?: number
 }
 
 export interface VesselInfo {

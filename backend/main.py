@@ -83,6 +83,7 @@ class VesselRegistryUpdate(BaseModel):
     license_start_local: Optional[str] = None
     license_end_local: Optional[str] = None
     group_name: Optional[str] = None
+    fishing_hours: Optional[float] = None  # 조업시간
 
 
 class VesselInfo(BaseModel):
@@ -256,8 +257,9 @@ def get_vessel_registry(
             params.append(f"%{business_type}%")
 
         if group_name and group_name != 'all':
-            base_query += " AND group_name = ?"
-            params.append(group_name)
+            # 쉼표로 구분된 여러 그룹 중 하나라도 포함되면 조회
+            base_query += " AND (group_name = ? OR group_name LIKE ? OR group_name LIKE ? OR group_name LIKE ?)"
+            params.extend([group_name, f"{group_name}, %", f"%, {group_name}", f"%, {group_name}, %"])
 
         # 전체 개수
         cursor.execute(f"SELECT COUNT(*) {base_query}", params)
@@ -323,18 +325,26 @@ def get_business_types():
 
 @app.get("/api/vessel-registry/groups/list")
 def get_groups():
-    """그룹 목록 조회"""
+    """그룹 목록 조회 (쉼표로 구분된 그룹을 개별로 분리하여 카운트)"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT DISTINCT group_name, COUNT(*) as count
+            SELECT group_name
             FROM vessel_registry
             WHERE group_name IS NOT NULL AND group_name != ''
-            GROUP BY group_name
-            ORDER BY group_name
         """)
         rows = cursor.fetchall()
-        return {"data": [{"group_name": row["group_name"], "count": row["count"]} for row in rows]}
+
+        # 모든 그룹을 분리하여 카운트
+        group_counts = {}
+        for row in rows:
+            groups = [g.strip() for g in row["group_name"].split(',') if g.strip()]
+            for group in groups:
+                group_counts[group] = group_counts.get(group, 0) + 1
+
+        # 그룹명으로 정렬하여 반환
+        sorted_groups = sorted(group_counts.items(), key=lambda x: x[0])
+        return {"data": [{"group_name": name, "count": count} for name, count in sorted_groups]}
 
 
 @app.get("/api/vessel-registry/{vessel_id}")

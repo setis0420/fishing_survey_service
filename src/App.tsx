@@ -68,7 +68,7 @@ function App() {
                 }
               >
                 <Database className="h-5 w-5" />
-                <span>어선 정보 관리</span>
+                <span>어선 정보 조회·수정</span>
               </NavLink>
             </div>
           </div>
