@@ -279,7 +279,7 @@ export default function AuctionList() {
     let rows: (string | number)[][] = []
 
     if (activeTab === 'auction') {
-      headers = ['위판일시', '선박명', '위판장', '어종', '수량(kg)', '단가', '금액', '구매자']
+      headers = ['위판일시', '선박명', '위판장', '어종', '수량(kg)', '단가', '금액', '구매자', '비고']
       rows = auctions.map((a) => [
         a.auction_date,
         a.vessel_name || '-',
@@ -289,6 +289,7 @@ export default function AuctionList() {
         a.unit_price,
         a.total_price,
         a.buyer || '-',
+        a.note || '-',
       ])
     } else if (activeTab === 'private-sale') {
       headers = ['판매일시', '선박명', '어종', '수량(kg)', '단가', '금액', '구매자', '비고']
@@ -517,6 +518,7 @@ export default function AuctionList() {
                           </div>
                         </TableHead>
                         <TableHead className="font-semibold">구매자</TableHead>
+                        <TableHead className="font-semibold">비고</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -540,11 +542,14 @@ export default function AuctionList() {
                             {formatCurrency(auction.total_price)}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{auction.buyer || '-'}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={auction.note || ''}>
+                            {auction.note || '-'}
+                          </TableCell>
                         </TableRow>
                       ))}
                       {auctions.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center text-muted-foreground py-16">
+                          <TableCell colSpan={9} className="text-center text-muted-foreground py-16">
                             <Receipt className="h-10 w-10 mx-auto mb-3 opacity-30" />
                             <p className="text-sm font-medium">등록된 위판 내역이 없습니다</p>
                             <p className="text-xs mt-1">항적 조회 및 위판정보 입력 메뉴에서 위판 정보를 입력해주세요</p>
