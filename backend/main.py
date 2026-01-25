@@ -186,6 +186,36 @@ class ExpenseCreate(BaseModel):
     note: Optional[str] = None
 
 
+class AuctionUpdate(BaseModel):
+    """위판 정보 수정용"""
+    auction_date: Optional[datetime] = None
+    auction_port: Optional[str] = None
+    fish_species: Optional[str] = None
+    quantity: Optional[float] = None
+    unit_price: Optional[float] = None
+    buyer: Optional[str] = None
+    note: Optional[str] = None
+
+
+class PrivateSaleUpdate(BaseModel):
+    """사매 정보 수정용"""
+    sale_date: Optional[datetime] = None
+    fish_species: Optional[str] = None
+    quantity: Optional[float] = None
+    unit_price: Optional[float] = None
+    buyer: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ExpenseUpdate(BaseModel):
+    """경비 정보 수정용"""
+    expense_date: Optional[datetime] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    amount: Optional[float] = None
+    note: Optional[str] = None
+
+
 class MemoCreate(BaseModel):
     """메모 생성용"""
     content: str
@@ -727,6 +757,80 @@ def delete_auction(auction_id: str):
         return {"message": "삭제되었습니다"}
 
 
+@app.put("/api/auctions/{auction_id}")
+def update_auction(auction_id: str, auction: AuctionUpdate):
+    """위판 정보 수정"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 기존 데이터 조회
+        cursor.execute("SELECT * FROM auctions WHERE id = ?", (auction_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="위판 정보를 찾을 수 없습니다")
+
+        old_data = dict(row)
+
+        # 변경된 필드만 업데이트 및 이력 기록
+        update_fields = []
+        update_values = []
+
+        field_map = {
+            'auction_date': auction.auction_date.isoformat() if auction.auction_date else None,
+            'auction_port': auction.auction_port,
+            'fish_species': auction.fish_species,
+            'quantity': auction.quantity,
+            'unit_price': auction.unit_price,
+            'buyer': auction.buyer,
+            'note': auction.note
+        }
+
+        for field, new_val in field_map.items():
+            if new_val is not None:
+                old_val = str(old_data.get(field, '') or '')
+                new_val_str = str(new_val)
+                if old_val != new_val_str:
+                    # 이력 기록
+                    cursor.execute("""
+                        INSERT INTO modification_history (record_type, record_id, field_name, old_value, new_value)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, ('auction', auction_id, field, old_val, new_val_str))
+                    update_fields.append(f"{field} = ?")
+                    update_values.append(new_val)
+
+        if update_fields:
+            # total_price 재계산
+            new_quantity = auction.quantity if auction.quantity is not None else old_data['quantity']
+            new_unit_price = auction.unit_price if auction.unit_price is not None else old_data['unit_price']
+            total_price = new_quantity * new_unit_price
+            update_fields.append("total_price = ?")
+            update_values.append(total_price)
+            update_fields.append("updated_at = CURRENT_TIMESTAMP")
+
+            update_values.append(auction_id)
+            cursor.execute(f"""
+                UPDATE auctions SET {', '.join(update_fields)} WHERE id = ?
+            """, update_values)
+            conn.commit()
+
+        cursor.execute("SELECT * FROM auctions WHERE id = ?", (auction_id,))
+        return {"message": "수정되었습니다", "data": dict(cursor.fetchone())}
+
+
+@app.get("/api/auctions/{auction_id}/history")
+def get_auction_history(auction_id: str):
+    """위판 수정이력 조회"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM modification_history
+            WHERE record_type = 'auction' AND record_id = ?
+            ORDER BY modified_at DESC
+        """, (auction_id,))
+        rows = cursor.fetchall()
+        return {"data": [dict(row) for row in rows]}
+
+
 # ---------- 사매 관련 API ----------
 
 @app.get("/api/private-sales")
@@ -839,6 +943,75 @@ def delete_private_sale(sale_id: str):
         return {"message": "삭제되었습니다"}
 
 
+@app.put("/api/private-sales/{sale_id}")
+def update_private_sale(sale_id: str, sale: PrivateSaleUpdate):
+    """사매 정보 수정"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM private_sales WHERE id = ?", (sale_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="사매 정보를 찾을 수 없습니다")
+
+        old_data = dict(row)
+
+        update_fields = []
+        update_values = []
+
+        field_map = {
+            'sale_date': sale.sale_date.isoformat() if sale.sale_date else None,
+            'fish_species': sale.fish_species,
+            'quantity': sale.quantity,
+            'unit_price': sale.unit_price,
+            'buyer': sale.buyer,
+            'note': sale.note
+        }
+
+        for field, new_val in field_map.items():
+            if new_val is not None:
+                old_val = str(old_data.get(field, '') or '')
+                new_val_str = str(new_val)
+                if old_val != new_val_str:
+                    cursor.execute("""
+                        INSERT INTO modification_history (record_type, record_id, field_name, old_value, new_value)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, ('private_sale', sale_id, field, old_val, new_val_str))
+                    update_fields.append(f"{field} = ?")
+                    update_values.append(new_val)
+
+        if update_fields:
+            new_quantity = sale.quantity if sale.quantity is not None else old_data['quantity']
+            new_unit_price = sale.unit_price if sale.unit_price is not None else old_data['unit_price']
+            total_price = new_quantity * new_unit_price
+            update_fields.append("total_price = ?")
+            update_values.append(total_price)
+            update_fields.append("updated_at = CURRENT_TIMESTAMP")
+
+            update_values.append(sale_id)
+            cursor.execute(f"""
+                UPDATE private_sales SET {', '.join(update_fields)} WHERE id = ?
+            """, update_values)
+            conn.commit()
+
+        cursor.execute("SELECT * FROM private_sales WHERE id = ?", (sale_id,))
+        return {"message": "수정되었습니다", "data": dict(cursor.fetchone())}
+
+
+@app.get("/api/private-sales/{sale_id}/history")
+def get_private_sale_history(sale_id: str):
+    """사매 수정이력 조회"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM modification_history
+            WHERE record_type = 'private_sale' AND record_id = ?
+            ORDER BY modified_at DESC
+        """, (sale_id,))
+        rows = cursor.fetchall()
+        return {"data": [dict(row) for row in rows]}
+
+
 # ---------- 경비 관련 API ----------
 
 @app.get("/api/expenses")
@@ -946,6 +1119,68 @@ def delete_expense(expense_id: str):
         conn.commit()
 
         return {"message": "삭제되었습니다"}
+
+
+@app.put("/api/expenses/{expense_id}")
+def update_expense(expense_id: str, expense: ExpenseUpdate):
+    """경비 정보 수정"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="경비 정보를 찾을 수 없습니다")
+
+        old_data = dict(row)
+
+        update_fields = []
+        update_values = []
+
+        field_map = {
+            'expense_date': expense.expense_date.isoformat() if expense.expense_date else None,
+            'category': expense.category,
+            'description': expense.description,
+            'amount': expense.amount,
+            'note': expense.note
+        }
+
+        for field, new_val in field_map.items():
+            if new_val is not None:
+                old_val = str(old_data.get(field, '') or '')
+                new_val_str = str(new_val)
+                if old_val != new_val_str:
+                    cursor.execute("""
+                        INSERT INTO modification_history (record_type, record_id, field_name, old_value, new_value)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, ('expense', expense_id, field, old_val, new_val_str))
+                    update_fields.append(f"{field} = ?")
+                    update_values.append(new_val)
+
+        if update_fields:
+            update_fields.append("updated_at = CURRENT_TIMESTAMP")
+            update_values.append(expense_id)
+            cursor.execute(f"""
+                UPDATE expenses SET {', '.join(update_fields)} WHERE id = ?
+            """, update_values)
+            conn.commit()
+
+        cursor.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,))
+        return {"message": "수정되었습니다", "data": dict(cursor.fetchone())}
+
+
+@app.get("/api/expenses/{expense_id}/history")
+def get_expense_history(expense_id: str):
+    """경비 수정이력 조회"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM modification_history
+            WHERE record_type = 'expense' AND record_id = ?
+            ORDER BY modified_at DESC
+        """, (expense_id,))
+        rows = cursor.fetchall()
+        return {"data": [dict(row) for row in rows]}
 
 
 # ---------- 통계 API ----------

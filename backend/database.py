@@ -123,11 +123,13 @@ def init_db():
             )
         """)
 
-        # auctions 테이블에 note 컬럼 추가 (기존 DB 마이그레이션)
+        # auctions 테이블에 note, updated_at 컬럼 추가 (기존 DB 마이그레이션)
         cursor.execute("PRAGMA table_info(auctions)")
         auction_columns = [col[1] for col in cursor.fetchall()]
         if 'note' not in auction_columns:
             cursor.execute("ALTER TABLE auctions ADD COLUMN note TEXT")
+        if 'updated_at' not in auction_columns:
+            cursor.execute("ALTER TABLE auctions ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
 
         # 사매 테이블 (위판장 외 직접 판매)
         cursor.execute("""
@@ -142,9 +144,16 @@ def init_db():
                 buyer TEXT,
                 note TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (voyage_id) REFERENCES voyages(id)
             )
         """)
+
+        # private_sales 테이블에 updated_at 컬럼 추가 (기존 DB 마이그레이션)
+        cursor.execute("PRAGMA table_info(private_sales)")
+        ps_columns = [col[1] for col in cursor.fetchall()]
+        if 'updated_at' not in ps_columns:
+            cursor.execute("ALTER TABLE private_sales ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
 
         # 경비 테이블
         cursor.execute("""
@@ -157,9 +166,30 @@ def init_db():
                 amount REAL NOT NULL,
                 note TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (voyage_id) REFERENCES voyages(id)
             )
         """)
+
+        # expenses 테이블에 updated_at 컬럼 추가 (기존 DB 마이그레이션)
+        cursor.execute("PRAGMA table_info(expenses)")
+        exp_columns = [col[1] for col in cursor.fetchall()]
+        if 'updated_at' not in exp_columns:
+            cursor.execute("ALTER TABLE expenses ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+
+        # 수정이력 테이블 (위판/사매/경비 공용)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS modification_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                record_type TEXT NOT NULL,
+                record_id TEXT NOT NULL,
+                field_name TEXT NOT NULL,
+                old_value TEXT,
+                new_value TEXT,
+                modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_history_record ON modification_history(record_type, record_id)")
 
         # 어선 메모 테이블
         cursor.execute("""

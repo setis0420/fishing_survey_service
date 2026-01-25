@@ -25,6 +25,13 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Search,
   Ship,
   Receipt,
@@ -40,14 +47,23 @@ import {
   Building2,
   Users,
   Briefcase,
+  Clock,
+  History,
+  FileText,
+  Calendar,
+  User,
 } from 'lucide-react'
 import {
   type AuctionData,
   type PrivateSaleData,
   type ExpenseData,
+  type ModificationHistory,
   getGroups,
   getOrganizations,
   getBusinessTypes,
+  getAuctionHistory,
+  getPrivateSaleHistory,
+  getExpenseHistory,
 } from '@/lib/api'
 
 // API 기본 URL
@@ -154,6 +170,13 @@ export default function AuctionList() {
   const [selectedOrganization, setSelectedOrganization] = useState('all')
   const [selectedBusinessType, setSelectedBusinessType] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('')
+
+  // 상세 다이얼로그 상태
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false)
+  const [selectedRecord, setSelectedRecord] = useState<AuctionData | PrivateSaleData | ExpenseData | null>(null)
+  const [selectedRecordType, setSelectedRecordType] = useState<'auction' | 'private_sale' | 'expense'>('auction')
+  const [modificationHistory, setModificationHistory] = useState<ModificationHistory[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   // 경비 카테고리 목록
   const expenseCategories = ['유류비', '인건비', '수리비', '어구비', '식비', '기타']
@@ -264,6 +287,53 @@ export default function AuctionList() {
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(amount)
+  }
+
+  // 상세 보기 다이얼로그 열기
+  const openDetailDialog = async (
+    record: AuctionData | PrivateSaleData | ExpenseData,
+    type: 'auction' | 'private_sale' | 'expense'
+  ) => {
+    setSelectedRecord(record)
+    setSelectedRecordType(type)
+    setDetailDialogOpen(true)
+    setHistoryLoading(true)
+    setModificationHistory([])
+
+    try {
+      let historyRes
+      if (type === 'auction') {
+        historyRes = await getAuctionHistory(record.id)
+      } else if (type === 'private_sale') {
+        historyRes = await getPrivateSaleHistory(record.id)
+      } else {
+        historyRes = await getExpenseHistory(record.id)
+      }
+      setModificationHistory(historyRes.data || [])
+    } catch (error) {
+      console.error('이력 조회 실패:', error)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  // 필드명 한글 변환
+  const getFieldLabel = (fieldName: string): string => {
+    const labels: Record<string, string> = {
+      auction_date: '위판일시',
+      auction_port: '위판장',
+      fish_species: '어종',
+      quantity: '수량',
+      unit_price: '단가',
+      buyer: '구매자',
+      note: '비고',
+      sale_date: '판매일시',
+      expense_date: '지출일시',
+      category: '카테고리',
+      description: '내용',
+      amount: '금액',
+    }
+    return labels[fieldName] || fieldName
   }
 
   // 통계 계산
@@ -523,7 +593,11 @@ export default function AuctionList() {
                     </TableHeader>
                     <TableBody>
                       {auctions.map((auction) => (
-                        <TableRow key={auction.id} className="hover:bg-muted/30">
+                        <TableRow
+                          key={auction.id}
+                          className="hover:bg-muted/30 cursor-pointer"
+                          onClick={() => openDetailDialog(auction, 'auction')}
+                        >
                           <TableCell className="text-sm">{formatDate(auction.auction_date)}</TableCell>
                           <TableCell className="text-sm font-medium">{auction.vessel_name || '-'}</TableCell>
                           <TableCell className="text-sm">{auction.auction_port}</TableCell>
@@ -613,7 +687,11 @@ export default function AuctionList() {
                     </TableHeader>
                     <TableBody>
                       {privateSales.map((sale) => (
-                        <TableRow key={sale.id} className="hover:bg-muted/30">
+                        <TableRow
+                          key={sale.id}
+                          className="hover:bg-muted/30 cursor-pointer"
+                          onClick={() => openDetailDialog(sale, 'private_sale')}
+                        >
                           <TableCell className="text-sm">{formatDate(sale.sale_date)}</TableCell>
                           <TableCell className="text-sm font-medium">{sale.vessel_name || '-'}</TableCell>
                           <TableCell className="text-sm">
@@ -695,7 +773,11 @@ export default function AuctionList() {
                     </TableHeader>
                     <TableBody>
                       {expenses.map((expense) => (
-                        <TableRow key={expense.id} className="hover:bg-muted/30">
+                        <TableRow
+                          key={expense.id}
+                          className="hover:bg-muted/30 cursor-pointer"
+                          onClick={() => openDetailDialog(expense, 'expense')}
+                        >
                           <TableCell className="text-sm">{formatDate(expense.expense_date)}</TableCell>
                           <TableCell className="text-sm font-medium">{expense.vessel_name || '-'}</TableCell>
                           <TableCell className="text-sm">
@@ -740,6 +822,206 @@ export default function AuctionList() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* 상세 보기 다이얼로그 */}
+      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              {selectedRecordType === 'auction' && '위판 상세 정보'}
+              {selectedRecordType === 'private_sale' && '사매 상세 정보'}
+              {selectedRecordType === 'expense' && '경비 상세 정보'}
+            </DialogTitle>
+            <DialogDescription>
+              ID: <span className="font-mono">{selectedRecord?.id}</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedRecord && (
+            <div className="space-y-6 py-4">
+              {/* 기본 정보 */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  기본 정보
+                </h4>
+                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+                  {selectedRecordType === 'auction' && (
+                    <>
+                      <div>
+                        <div className="text-xs text-muted-foreground">위판일시</div>
+                        <div className="text-sm font-medium">{formatDate((selectedRecord as AuctionData).auction_date)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">위판장</div>
+                        <div className="text-sm font-medium">{(selectedRecord as AuctionData).auction_port}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">어종</div>
+                        <div className="text-sm font-medium">{(selectedRecord as AuctionData).fish_species}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">수량</div>
+                        <div className="text-sm font-medium">{(selectedRecord as AuctionData).quantity.toLocaleString()} kg</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">단가</div>
+                        <div className="text-sm font-medium">{formatCurrency((selectedRecord as AuctionData).unit_price)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">총액</div>
+                        <div className="text-sm font-bold text-primary">{formatCurrency((selectedRecord as AuctionData).total_price)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">구매자</div>
+                        <div className="text-sm font-medium">{(selectedRecord as AuctionData).buyer || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">선박명</div>
+                        <div className="text-sm font-medium">{selectedRecord.vessel_name || '-'}</div>
+                      </div>
+                    </>
+                  )}
+                  {selectedRecordType === 'private_sale' && (
+                    <>
+                      <div>
+                        <div className="text-xs text-muted-foreground">판매일시</div>
+                        <div className="text-sm font-medium">{formatDate((selectedRecord as PrivateSaleData).sale_date)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">어종</div>
+                        <div className="text-sm font-medium">{(selectedRecord as PrivateSaleData).fish_species}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">수량</div>
+                        <div className="text-sm font-medium">{(selectedRecord as PrivateSaleData).quantity.toLocaleString()} kg</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">단가</div>
+                        <div className="text-sm font-medium">{formatCurrency((selectedRecord as PrivateSaleData).unit_price)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">총액</div>
+                        <div className="text-sm font-bold text-green-600">{formatCurrency((selectedRecord as PrivateSaleData).total_price)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">구매자</div>
+                        <div className="text-sm font-medium">{(selectedRecord as PrivateSaleData).buyer || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">선박명</div>
+                        <div className="text-sm font-medium">{selectedRecord.vessel_name || '-'}</div>
+                      </div>
+                    </>
+                  )}
+                  {selectedRecordType === 'expense' && (
+                    <>
+                      <div>
+                        <div className="text-xs text-muted-foreground">지출일시</div>
+                        <div className="text-sm font-medium">{formatDate((selectedRecord as ExpenseData).expense_date)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">카테고리</div>
+                        <div className="text-sm font-medium">{(selectedRecord as ExpenseData).category}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">내용</div>
+                        <div className="text-sm font-medium">{(selectedRecord as ExpenseData).description || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">금액</div>
+                        <div className="text-sm font-bold text-orange-600">{formatCurrency((selectedRecord as ExpenseData).amount)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">선박명</div>
+                        <div className="text-sm font-medium">{selectedRecord.vessel_name || '-'}</div>
+                      </div>
+                    </>
+                  )}
+                  <div className="col-span-2">
+                    <div className="text-xs text-muted-foreground">비고</div>
+                    <div className="text-sm font-medium">{selectedRecord.note || '-'}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 입력/수정 일자 */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  입력/수정 일자
+                </h4>
+                <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50/50 rounded-lg border border-blue-100">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-blue-600" />
+                    <div>
+                      <div className="text-xs text-muted-foreground">입력일자</div>
+                      <div className="text-sm font-medium">
+                        {selectedRecord.created_at ? formatDate(selectedRecord.created_at) : '-'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-blue-600" />
+                    <div>
+                      <div className="text-xs text-muted-foreground">수정일자</div>
+                      <div className="text-sm font-medium">
+                        {selectedRecord.updated_at ? formatDate(selectedRecord.updated_at) : '-'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 수정 이력 */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                  <History className="h-4 w-4" />
+                  수정 이력
+                </h4>
+                {historyLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="text-sm">이력 조회 중...</p>
+                  </div>
+                ) : modificationHistory.length > 0 ? (
+                  <div className="rounded-lg border overflow-hidden max-h-[200px] overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="text-xs font-semibold">수정일시</TableHead>
+                          <TableHead className="text-xs font-semibold">필드</TableHead>
+                          <TableHead className="text-xs font-semibold">이전 값</TableHead>
+                          <TableHead className="text-xs font-semibold">변경 값</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {modificationHistory.map((h) => (
+                          <TableRow key={h.id}>
+                            <TableCell className="text-xs">{formatDate(h.modified_at)}</TableCell>
+                            <TableCell className="text-xs font-medium">{getFieldLabel(h.field_name)}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-[100px] truncate" title={h.old_value || ''}>
+                              {h.old_value || '-'}
+                            </TableCell>
+                            <TableCell className="text-xs text-primary max-w-[100px] truncate" title={h.new_value || ''}>
+                              {h.new_value || '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 bg-muted/30 rounded-lg text-muted-foreground">
+                    <History className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">수정 이력이 없습니다</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

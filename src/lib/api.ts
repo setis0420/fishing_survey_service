@@ -105,6 +105,9 @@ export interface AuctionData {
   total_price: number
   buyer?: string
   note?: string
+  created_at?: string
+  updated_at?: string
+  vessel_name?: string
 }
 
 export interface VoyageUpdate {
@@ -137,6 +140,9 @@ export interface PrivateSaleData {
   total_price: number
   buyer?: string
   note?: string
+  created_at?: string
+  updated_at?: string
+  vessel_name?: string
 }
 
 export interface PrivateSaleCreate {
@@ -157,6 +163,9 @@ export interface ExpenseData {
   description?: string
   amount: number
   note?: string
+  created_at?: string
+  updated_at?: string
+  vessel_name?: string
 }
 
 export interface ExpenseCreate {
@@ -166,6 +175,43 @@ export interface ExpenseCreate {
   description?: string
   amount: number
   note?: string
+}
+
+export interface AuctionUpdate {
+  auction_date?: string
+  auction_port?: string
+  fish_species?: string
+  quantity?: number
+  unit_price?: number
+  buyer?: string
+  note?: string
+}
+
+export interface PrivateSaleUpdate {
+  sale_date?: string
+  fish_species?: string
+  quantity?: number
+  unit_price?: number
+  buyer?: string
+  note?: string
+}
+
+export interface ExpenseUpdate {
+  expense_date?: string
+  category?: string
+  description?: string
+  amount?: number
+  note?: string
+}
+
+export interface ModificationHistory {
+  id: number
+  record_type: string
+  record_id: string
+  field_name: string
+  old_value?: string
+  new_value?: string
+  modified_at: string
 }
 
 export interface Statistics {
@@ -247,6 +293,20 @@ export async function deleteAuction(auctionId: string): Promise<{ message: strin
   return res.json()
 }
 
+export async function updateAuction(auctionId: string, update: AuctionUpdate): Promise<{ message: string; data: AuctionData }> {
+  const res = await fetch(`${API_BASE_URL}/auctions/${auctionId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(update)
+  })
+  return res.json()
+}
+
+export async function getAuctionHistory(auctionId: string): Promise<{ data: ModificationHistory[] }> {
+  const res = await fetch(`${API_BASE_URL}/auctions/${auctionId}/history`)
+  return res.json()
+}
+
 // ---------- 사매 API ----------
 
 export async function getPrivateSales(voyageId?: string): Promise<{ data: PrivateSaleData[]; total: number }> {
@@ -271,6 +331,20 @@ export async function deletePrivateSale(saleId: string): Promise<{ message: stri
   return res.json()
 }
 
+export async function updatePrivateSale(saleId: string, update: PrivateSaleUpdate): Promise<{ message: string; data: PrivateSaleData }> {
+  const res = await fetch(`${API_BASE_URL}/private-sales/${saleId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(update)
+  })
+  return res.json()
+}
+
+export async function getPrivateSaleHistory(saleId: string): Promise<{ data: ModificationHistory[] }> {
+  const res = await fetch(`${API_BASE_URL}/private-sales/${saleId}/history`)
+  return res.json()
+}
+
 // ---------- 경비 API ----------
 
 export async function getExpenses(voyageId?: string): Promise<{ data: ExpenseData[]; total: number }> {
@@ -292,6 +366,20 @@ export async function deleteExpense(expenseId: string): Promise<{ message: strin
   const res = await fetch(`${API_BASE_URL}/expenses/${expenseId}`, {
     method: 'DELETE'
   })
+  return res.json()
+}
+
+export async function updateExpense(expenseId: string, update: ExpenseUpdate): Promise<{ message: string; data: ExpenseData }> {
+  const res = await fetch(`${API_BASE_URL}/expenses/${expenseId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(update)
+  })
+  return res.json()
+}
+
+export async function getExpenseHistory(expenseId: string): Promise<{ data: ModificationHistory[] }> {
+  const res = await fetch(`${API_BASE_URL}/expenses/${expenseId}/history`)
   return res.json()
 }
 
