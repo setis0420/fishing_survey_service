@@ -63,6 +63,12 @@ def init_db():
             cursor.execute("ALTER TABLE vessel_registry ADD COLUMN group_name TEXT")
         if 'fishing_hours' not in columns:
             cursor.execute("ALTER TABLE vessel_registry ADD COLUMN fishing_hours REAL")
+        if 'engine_name' not in columns:
+            cursor.execute("ALTER TABLE vessel_registry ADD COLUMN engine_name TEXT")
+        if 'organization' not in columns:
+            cursor.execute("ALTER TABLE vessel_registry ADD COLUMN organization TEXT")
+        if 'owner_name' not in columns:
+            cursor.execute("ALTER TABLE vessel_registry ADD COLUMN owner_name TEXT")
 
         # 항차 테이블
         cursor.execute("""
@@ -111,6 +117,45 @@ def init_db():
                 unit_price REAL NOT NULL,
                 total_price REAL NOT NULL,
                 buyer TEXT,
+                note TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (voyage_id) REFERENCES voyages(id)
+            )
+        """)
+
+        # auctions 테이블에 note 컬럼 추가 (기존 DB 마이그레이션)
+        cursor.execute("PRAGMA table_info(auctions)")
+        auction_columns = [col[1] for col in cursor.fetchall()]
+        if 'note' not in auction_columns:
+            cursor.execute("ALTER TABLE auctions ADD COLUMN note TEXT")
+
+        # 사매 테이블 (위판장 외 직접 판매)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS private_sales (
+                id TEXT PRIMARY KEY,
+                voyage_id TEXT NOT NULL,
+                sale_date TIMESTAMP NOT NULL,
+                fish_species TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                unit_price REAL NOT NULL,
+                total_price REAL NOT NULL,
+                buyer TEXT,
+                note TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (voyage_id) REFERENCES voyages(id)
+            )
+        """)
+
+        # 경비 테이블
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS expenses (
+                id TEXT PRIMARY KEY,
+                voyage_id TEXT NOT NULL,
+                expense_date TIMESTAMP NOT NULL,
+                category TEXT NOT NULL,
+                description TEXT,
+                amount REAL NOT NULL,
+                note TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (voyage_id) REFERENCES voyages(id)
             )
@@ -167,6 +212,8 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vessel_registration ON vessel_registry(registration_no)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_voyages_mmsi ON voyages(mmsi)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_auctions_voyage ON auctions(voyage_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_private_sales_voyage ON private_sales(voyage_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_expenses_voyage ON expenses(voyage_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vessel_memos_vessel ON vessel_memos(vessel_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vessel_photos_vessel ON vessel_photos(vessel_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vessel_files_vessel ON vessel_files(vessel_id)")

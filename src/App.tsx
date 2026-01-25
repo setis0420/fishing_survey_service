@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
-import { Ship, FileText, Anchor, Waves, Database } from 'lucide-react'
+import { Ship, Anchor, Waves, Database, Search } from 'lucide-react'
 import VoyageInquiry from '@/pages/VoyageInquiry'
-import AuctionEntry from '@/pages/AuctionEntry'
+import AuctionList from '@/pages/AuctionList'
 import VesselRegistry from '@/pages/VesselRegistry'
 
 function App() {
@@ -42,10 +42,10 @@ function App() {
                 }
               >
                 <Ship className="h-5 w-5" />
-                <span>항적/어획 조회·수정</span>
+                <span>항적 조회 및 위판정보 입력</span>
               </NavLink>
               <NavLink
-                to="/auction"
+                to="/auction-list"
                 className={({ isActive }) =>
                   `flex items-center gap-2 px-5 py-4 border-b-3 font-medium transition-all ${
                     isActive
@@ -54,8 +54,8 @@ function App() {
                   }`
                 }
               >
-                <FileText className="h-5 w-5" />
-                <span>위판 정보 입력</span>
+                <Search className="h-5 w-5" />
+                <span>위판 실적 조회</span>
               </NavLink>
               <NavLink
                 to="/vessel-registry"
@@ -78,7 +78,7 @@ function App() {
         <main className="flex-1 mx-auto max-w-7xl w-full px-6 py-6">
           <Routes>
             <Route path="/" element={<VoyageInquiry />} />
-            <Route path="/auction" element={<AuctionEntry />} />
+            <Route path="/auction-list" element={<AuctionList />} />
             <Route path="/vessel-registry" element={<VesselRegistry />} />
           </Routes>
         </main>

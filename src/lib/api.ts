@@ -12,6 +12,7 @@ export interface VesselRegistry {
   engine_count?: number
   engine_power_ps?: number
   engine_power_kw?: number
+  engine_name?: string
   hull_material?: string
   registration_no?: string
   build_date?: string
@@ -28,6 +29,8 @@ export interface VesselRegistry {
   license_end_province?: string
   group_name?: string
   fishing_hours?: number
+  organization?: string
+  owner_name?: string
   created_at?: string
   updated_at?: string
   photo_count?: number
@@ -42,6 +45,7 @@ export interface VesselRegistryUpdate {
   engine_count?: number
   engine_power_ps?: number
   engine_power_kw?: number
+  engine_name?: string
   hull_material?: string
   port?: string
   business_type?: string
@@ -51,6 +55,8 @@ export interface VesselRegistryUpdate {
   license_end_local?: string
   group_name?: string
   fishing_hours?: number
+  organization?: string
+  owner_name?: string
 }
 
 export interface VesselInfo {
@@ -98,6 +104,7 @@ export interface AuctionData {
   unit_price: number
   total_price: number
   buyer?: string
+  note?: string
 }
 
 export interface VoyageUpdate {
@@ -117,6 +124,48 @@ export interface AuctionCreate {
   quantity: number
   unit_price: number
   buyer?: string
+  note?: string
+}
+
+export interface PrivateSaleData {
+  id: string
+  voyage_id: string
+  sale_date: string
+  fish_species: string
+  quantity: number
+  unit_price: number
+  total_price: number
+  buyer?: string
+  note?: string
+}
+
+export interface PrivateSaleCreate {
+  voyage_id: string
+  sale_date: string
+  fish_species: string
+  quantity: number
+  unit_price: number
+  buyer?: string
+  note?: string
+}
+
+export interface ExpenseData {
+  id: string
+  voyage_id: string
+  expense_date: string
+  category: string
+  description?: string
+  amount: number
+  note?: string
+}
+
+export interface ExpenseCreate {
+  voyage_id: string
+  expense_date: string
+  category: string
+  description?: string
+  amount: number
+  note?: string
 }
 
 export interface Statistics {
@@ -198,6 +247,54 @@ export async function deleteAuction(auctionId: string): Promise<{ message: strin
   return res.json()
 }
 
+// ---------- 사매 API ----------
+
+export async function getPrivateSales(voyageId?: string): Promise<{ data: PrivateSaleData[]; total: number }> {
+  const query = voyageId ? `?voyage_id=${voyageId}` : ''
+  const res = await fetch(`${API_BASE_URL}/private-sales${query}`)
+  return res.json()
+}
+
+export async function createPrivateSale(sale: PrivateSaleCreate): Promise<{ message: string; data: PrivateSaleData }> {
+  const res = await fetch(`${API_BASE_URL}/private-sales`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sale)
+  })
+  return res.json()
+}
+
+export async function deletePrivateSale(saleId: string): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE_URL}/private-sales/${saleId}`, {
+    method: 'DELETE'
+  })
+  return res.json()
+}
+
+// ---------- 경비 API ----------
+
+export async function getExpenses(voyageId?: string): Promise<{ data: ExpenseData[]; total: number }> {
+  const query = voyageId ? `?voyage_id=${voyageId}` : ''
+  const res = await fetch(`${API_BASE_URL}/expenses${query}`)
+  return res.json()
+}
+
+export async function createExpense(expense: ExpenseCreate): Promise<{ message: string; data: ExpenseData }> {
+  const res = await fetch(`${API_BASE_URL}/expenses`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(expense)
+  })
+  return res.json()
+}
+
+export async function deleteExpense(expenseId: string): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE_URL}/expenses/${expenseId}`, {
+    method: 'DELETE'
+  })
+  return res.json()
+}
+
 // ---------- 통계 API ----------
 
 export async function getStatistics(): Promise<Statistics> {
@@ -220,6 +317,7 @@ export async function getVesselRegistry(params?: {
   port?: string
   business_type?: string
   group_name?: string
+  organization?: string
   page?: number
   page_size?: number
 }): Promise<VesselRegistryListResponse> {
@@ -228,6 +326,7 @@ export async function getVesselRegistry(params?: {
   if (params?.port) searchParams.set('port', params.port)
   if (params?.business_type) searchParams.set('business_type', params.business_type)
   if (params?.group_name) searchParams.set('group_name', params.group_name)
+  if (params?.organization) searchParams.set('organization', params.organization)
   if (params?.page) searchParams.set('page', String(params.page))
   if (params?.page_size) searchParams.set('page_size', String(params.page_size))
   const query = searchParams.toString()
@@ -264,6 +363,11 @@ export async function getBusinessTypes(): Promise<{ data: { business_type: strin
 
 export async function getGroups(): Promise<{ data: { group_name: string; count: number }[] }> {
   const res = await fetch(`${API_BASE_URL}/vessel-registry/groups/list`)
+  return res.json()
+}
+
+export async function getOrganizations(): Promise<{ data: { organization: string; count: number }[] }> {
+  const res = await fetch(`${API_BASE_URL}/vessel-registry/organizations/list`)
   return res.json()
 }
 
@@ -410,4 +514,57 @@ export async function deleteVesselFile(vesselId: number, fileId: number): Promis
 
 export function getFileDownloadUrl(filename: string): string {
   return `${API_BASE_URL}/uploads/files/${filename}`
+}
+
+// ---------- 항적 HTML 파일 API ----------
+
+export interface TrackFile {
+  filename: string
+  year: number
+  month: number
+  count: number
+}
+
+export interface TrackMonth {
+  month: number
+  count: number
+  filename: string
+}
+
+export async function getTrackList(mmsi: string): Promise<{ data: TrackFile[]; years: number[] }> {
+  const res = await fetch(`${API_BASE_URL}/tracks/list/${mmsi}`)
+  return res.json()
+}
+
+export async function getTrackYears(mmsi: string): Promise<{ years: number[] }> {
+  const res = await fetch(`${API_BASE_URL}/tracks/years/${mmsi}`)
+  return res.json()
+}
+
+export async function getTrackMonths(mmsi: string, year: number): Promise<{ months: TrackMonth[] }> {
+  const res = await fetch(`${API_BASE_URL}/tracks/months/${mmsi}/${year}`)
+  return res.json()
+}
+
+export async function getTrackHtml(mmsi: string, filename: string): Promise<{ html: string; filename: string }> {
+  const res = await fetch(`${API_BASE_URL}/tracks/html/${mmsi}/${filename}`)
+  return res.json()
+}
+
+export async function getOrCreateMonthlyVoyage(
+  mmsi: string,
+  year: number,
+  month: number,
+  vesselName: string
+): Promise<{ data: VoyageData; created: boolean }> {
+  const params = new URLSearchParams({
+    mmsi,
+    year: String(year),
+    month: String(month),
+    vessel_name: vesselName
+  })
+  const res = await fetch(`${API_BASE_URL}/voyages/get-or-create-monthly?${params}`, {
+    method: 'POST'
+  })
+  return res.json()
 }

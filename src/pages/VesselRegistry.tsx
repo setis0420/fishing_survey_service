@@ -42,7 +42,6 @@ import {
   Anchor,
   Ruler,
   Gauge,
-  FileText,
   MapPin,
   Building,
   Calendar,
@@ -50,14 +49,12 @@ import {
   Image,
   MessageSquare,
   Paperclip,
-  Upload,
   Trash2,
   Star,
   Download,
   Plus,
   X,
   Users,
-  Clock,
 } from 'lucide-react'
 import {
   getVesselRegistry,
@@ -66,6 +63,7 @@ import {
   getPorts,
   getBusinessTypes,
   getGroups,
+  getOrganizations,
   getVesselMemos,
   createVesselMemo,
   updateVesselMemo,
@@ -94,6 +92,7 @@ export default function VesselRegistryPage() {
   const [portFilter, setPortFilter] = useState('')
   const [businessTypeFilter, setBusinessTypeFilter] = useState('')
   const [groupFilter, setGroupFilter] = useState('')
+  const [organizationFilter, setOrganizationFilter] = useState('')
   const [loading, setLoading] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [detailDialogOpen, setDetailDialogOpen] = useState(false)
@@ -108,6 +107,7 @@ export default function VesselRegistryPage() {
   const [ports, setPorts] = useState<{ port: string; count: number }[]>([])
   const [businessTypes, setBusinessTypes] = useState<{ business_type: string; count: number }[]>([])
   const [groups, setGroups] = useState<{ group_name: string; count: number }[]>([])
+  const [organizations, setOrganizations] = useState<{ organization: string; count: number }[]>([])
 
   // 수정 폼
   const [editForm, setEditForm] = useState<VesselRegistryUpdate>({})
@@ -128,6 +128,7 @@ export default function VesselRegistryPage() {
     getPorts().then(res => setPorts(res.data))
     getBusinessTypes().then(res => setBusinessTypes(res.data))
     getGroups().then(res => setGroups(res.data))
+    getOrganizations().then(res => setOrganizations(res.data))
   }
 
   useEffect(() => {
@@ -145,6 +146,7 @@ export default function VesselRegistryPage() {
         port: portFilter || undefined,
         business_type: businessTypeFilter || undefined,
         group_name: groupFilter || undefined,
+        organization: organizationFilter || undefined,
         page,
         page_size: pageSize,
       })
@@ -196,15 +198,17 @@ export default function VesselRegistryPage() {
     setSelectedVessel(vessel)
     setEditForm({
       vessel_name: vessel.vessel_name,
+      owner_name: vessel.owner_name ?? undefined,
+      organization: vessel.organization ?? undefined,
       tonnage: vessel.tonnage ?? undefined,
       length: vessel.length ?? undefined,
-      engine_type: vessel.engine_type ?? undefined,
+      engine_name: vessel.engine_name ?? undefined,
+      engine_power_ps: vessel.engine_power_ps ?? undefined,
       hull_material: vessel.hull_material ?? undefined,
       port: vessel.port ?? undefined,
       business_type: vessel.business_type ?? undefined,
       mmsi: vessel.mmsi ?? undefined,
       group_name: vessel.group_name ?? undefined,
-      fishing_hours: vessel.fishing_hours ?? undefined,
     })
     setEditDialogOpen(true)
   }
@@ -467,6 +471,22 @@ export default function VesselRegistryPage() {
               </SelectContent>
             </Select>
 
+            {/* 소속 필터 */}
+            <Select value={organizationFilter} onValueChange={setOrganizationFilter}>
+              <SelectTrigger className="w-[180px]">
+                <Building className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="소속" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체 소속</SelectItem>
+                {organizations.map((o) => (
+                  <SelectItem key={o.organization} value={o.organization}>
+                    {o.organization} ({o.count})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Button onClick={handleSearch} disabled={loading} className="gap-2">
               <Search className="h-4 w-4" />
               검색
@@ -493,30 +513,48 @@ export default function VesselRegistryPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="font-semibold text-xs w-[140px]">선명</TableHead>
-                  <TableHead className="font-semibold text-xs">등록번호</TableHead>
+                  <TableHead className="font-semibold text-xs w-[100px]">어선명</TableHead>
+                  <TableHead className="font-semibold text-xs">소속</TableHead>
+                  <TableHead className="font-semibold text-xs">어업자명</TableHead>
+                  <TableHead className="font-semibold text-xs">어선번호</TableHead>
                   <TableHead className="font-semibold text-xs">MMSI</TableHead>
                   <TableHead className="font-semibold text-xs text-right">톤수</TableHead>
-                  <TableHead className="font-semibold text-xs text-right">길이(m)</TableHead>
-                  <TableHead className="font-semibold text-xs">선적항</TableHead>
-                  <TableHead className="font-semibold text-xs">업종</TableHead>
+                  <TableHead className="font-semibold text-xs text-right">선박길이</TableHead>
+                  <TableHead className="font-semibold text-xs">어업의종류</TableHead>
                   <TableHead className="font-semibold text-xs">그룹</TableHead>
-                  <TableHead className="font-semibold text-xs text-right">조업시간</TableHead>
                   <TableHead className="font-semibold text-xs text-center">사진</TableHead>
                   <TableHead className="font-semibold text-xs text-center">파일</TableHead>
-                  <TableHead className="w-[100px]"></TableHead>
+                  <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {vessels.map((vessel) => (
                   <TableRow key={vessel.id} className="hover:bg-muted/30 cursor-pointer" onClick={() => openDetailDialog(vessel)}>
                     <TableCell className="font-medium">{vessel.vessel_name}</TableCell>
+                    <TableCell className="text-xs truncate max-w-[100px]">{vessel.organization || '-'}</TableCell>
+                    <TableCell className="text-xs">{vessel.owner_name || '-'}</TableCell>
                     <TableCell className="font-mono text-xs">{vessel.registration_no || '-'}</TableCell>
                     <TableCell className="font-mono text-xs">{vessel.mmsi || '-'}</TableCell>
-                    <TableCell className="text-right font-mono">{vessel.tonnage?.toFixed(2) || '-'}</TableCell>
+                    <TableCell className="text-right font-mono">{vessel.tonnage?.toFixed(1) || '-'}</TableCell>
                     <TableCell className="text-right font-mono">{vessel.length?.toFixed(1) || '-'}</TableCell>
-                    <TableCell className="text-xs truncate max-w-[150px]">{vessel.port || '-'}</TableCell>
-                    <TableCell className="text-xs truncate max-w-[120px]">{vessel.business_type || '-'}</TableCell>
+                    <TableCell className="text-xs">
+                      {vessel.business_type ? (
+                        <div className="flex flex-wrap gap-1">
+                          {vessel.business_type.split(',').map((b, idx) => {
+                            const bizType = b.trim()
+                            if (!bizType) return null
+                            return (
+                              <span
+                                key={idx}
+                                className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px]"
+                              >
+                                {bizType}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      ) : '-'}
+                    </TableCell>
                     <TableCell className="text-xs">
                       {vessel.group_name ? (
                         <div className="flex flex-wrap gap-1">
@@ -534,9 +572,6 @@ export default function VesselRegistryPage() {
                           })}
                         </div>
                       ) : '-'}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {vessel.fishing_hours ? `${vessel.fishing_hours.toFixed(1)}h` : '-'}
                     </TableCell>
                     <TableCell className="text-center">
                       {vessel.photo_count ? (
@@ -653,11 +688,19 @@ export default function VesselRegistryPage() {
                   </h4>
                   <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
                     <div>
-                      <Label className="text-xs text-muted-foreground">선명</Label>
+                      <Label className="text-xs text-muted-foreground">어선명</Label>
                       <p className="font-medium">{selectedVessel.vessel_name}</p>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">등록번호</Label>
+                      <Label className="text-xs text-muted-foreground">어업자명</Label>
+                      <p>{selectedVessel.owner_name || '-'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">소속</Label>
+                      <p>{selectedVessel.organization || '-'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">어선번호</Label>
                       <p className="font-mono text-sm">{selectedVessel.registration_no || '-'}</p>
                     </div>
                     <div>
@@ -665,8 +708,12 @@ export default function VesselRegistryPage() {
                       <p className="font-mono">{selectedVessel.mmsi || '-'}</p>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">건조일</Label>
+                      <Label className="text-xs text-muted-foreground">건조일시</Label>
                       <p>{selectedVessel.build_date || '-'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">선적지</Label>
+                      <p>{selectedVessel.port || '-'}</p>
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">그룹</Label>
@@ -690,13 +737,34 @@ export default function VesselRegistryPage() {
                         <p>-</p>
                       )}
                     </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">조업시간</Label>
-                      <p className="font-mono flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-muted-foreground" />
-                        {selectedVessel.fishing_hours ? `${selectedVessel.fishing_hours.toFixed(1)} 시간` : '-'}
-                      </p>
-                    </div>
+                  </div>
+                </div>
+
+                {/* 어업의 종류 */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold flex items-center gap-2 text-sm">
+                    <Building className="h-4 w-4 text-primary" />
+                    어업의 종류
+                  </h4>
+                  <div className="p-4 bg-muted/30 rounded-lg">
+                    {selectedVessel.business_type ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedVessel.business_type.split(',').map((b, idx) => {
+                          const bizType = b.trim()
+                          if (!bizType) return null
+                          return (
+                            <span
+                              key={idx}
+                              className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm"
+                            >
+                              {bizType}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground">-</p>
+                    )}
                   </div>
                 </div>
 
@@ -709,11 +777,11 @@ export default function VesselRegistryPage() {
                   <div className="grid grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
                     <div>
                       <Label className="text-xs text-muted-foreground">톤수</Label>
-                      <p className="font-medium">{selectedVessel.tonnage?.toFixed(2) || '-'} 톤</p>
+                      <p className="font-medium">{selectedVessel.tonnage?.toFixed(1) || '-'} 톤</p>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">길이</Label>
-                      <p className="font-medium">{selectedVessel.length?.toFixed(1) || '-'} m</p>
+                      <Label className="text-xs text-muted-foreground">선박길이</Label>
+                      <p className="font-medium">{selectedVessel.length?.toFixed(2) || '-'} m</p>
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">선질</Label>
@@ -730,38 +798,12 @@ export default function VesselRegistryPage() {
                   </h4>
                   <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
                     <div>
-                      <Label className="text-xs text-muted-foreground">엔진종류</Label>
-                      <p>{selectedVessel.engine_type || '-'}</p>
+                      <Label className="text-xs text-muted-foreground">기관명</Label>
+                      <p>{selectedVessel.engine_name || '-'}</p>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">엔진갯수</Label>
-                      <p>{selectedVessel.engine_count || '-'}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">출력 (PS)</Label>
-                      <p className="font-mono">{selectedVessel.engine_power_ps || '-'}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">출력 (KW)</Label>
-                      <p className="font-mono">{selectedVessel.engine_power_kw || '-'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 등록 정보 */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold flex items-center gap-2 text-sm">
-                    <FileText className="h-4 w-4 text-primary" />
-                    등록 정보
-                  </h4>
-                  <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">선적항</Label>
-                      <p>{selectedVessel.port || '-'}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">업종</Label>
-                      <p>{selectedVessel.business_type || '-'}</p>
+                      <Label className="text-xs text-muted-foreground">엔진출력</Label>
+                      <p className="font-mono">{selectedVessel.engine_power_ps ? `${selectedVessel.engine_power_ps} PS` : '-'}</p>
                     </div>
                   </div>
                 </div>
@@ -1109,13 +1151,32 @@ export default function VesselRegistryPage() {
             <DialogDescription>{selectedVessel?.registration_no}</DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="vessel_name">어선명</Label>
+                <Input
+                  id="vessel_name"
+                  value={editForm.vessel_name || ''}
+                  onChange={(e) => setEditForm({ ...editForm, vessel_name: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="owner_name">어업자명</Label>
+                <Input
+                  id="owner_name"
+                  value={editForm.owner_name || ''}
+                  onChange={(e) => setEditForm({ ...editForm, owner_name: e.target.value })}
+                />
+              </div>
+            </div>
+
             <div className="grid gap-2">
-              <Label htmlFor="vessel_name">선명</Label>
+              <Label htmlFor="organization">소속</Label>
               <Input
-                id="vessel_name"
-                value={editForm.vessel_name || ''}
-                onChange={(e) => setEditForm({ ...editForm, vessel_name: e.target.value })}
+                id="organization"
+                value={editForm.organization || ''}
+                onChange={(e) => setEditForm({ ...editForm, organization: e.target.value })}
               />
             </div>
 
@@ -1125,30 +1186,41 @@ export default function VesselRegistryPage() {
                 <Input
                   id="tonnage"
                   type="number"
-                  step="0.01"
+                  step="0.1"
                   value={editForm.tonnage || ''}
                   onChange={(e) => setEditForm({ ...editForm, tonnage: parseFloat(e.target.value) || undefined })}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="length">길이 (m)</Label>
+                <Label htmlFor="length">선박길이 (m)</Label>
                 <Input
                   id="length"
                   type="number"
-                  step="0.1"
+                  step="0.01"
                   value={editForm.length || ''}
                   onChange={(e) => setEditForm({ ...editForm, length: parseFloat(e.target.value) || undefined })}
                 />
               </div>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="engine_type">엔진종류</Label>
-              <Input
-                id="engine_type"
-                value={editForm.engine_type || ''}
-                onChange={(e) => setEditForm({ ...editForm, engine_type: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="engine_name">기관명</Label>
+                <Input
+                  id="engine_name"
+                  value={editForm.engine_name || ''}
+                  onChange={(e) => setEditForm({ ...editForm, engine_name: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="engine_power_ps">엔진출력 (PS)</Label>
+                <Input
+                  id="engine_power_ps"
+                  type="number"
+                  value={editForm.engine_power_ps || ''}
+                  onChange={(e) => setEditForm({ ...editForm, engine_power_ps: parseFloat(e.target.value) || undefined })}
+                />
+              </div>
             </div>
 
             <div className="grid gap-2">
@@ -1161,7 +1233,7 @@ export default function VesselRegistryPage() {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="port">선적항</Label>
+              <Label htmlFor="port">선적지</Label>
               <Input
                 id="port"
                 value={editForm.port || ''}
@@ -1170,9 +1242,10 @@ export default function VesselRegistryPage() {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="business_type">업종</Label>
+              <Label htmlFor="business_type">어업의종류 (쉼표로 구분)</Label>
               <Input
                 id="business_type"
+                placeholder="근해자망, 근해연승"
                 value={editForm.business_type || ''}
                 onChange={(e) => setEditForm({ ...editForm, business_type: e.target.value })}
               />

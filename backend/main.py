@@ -17,6 +17,9 @@ UPLOAD_DIR = Path(__file__).parent / "uploads"
 PHOTO_DIR = UPLOAD_DIR / "photos"
 FILE_DIR = UPLOAD_DIR / "files"
 
+# 항적 HTML 파일 디렉토리
+TRACK_HTML_DIR = Path("K:/어업피해조사_KFW대상선박")
+
 # 디렉토리 생성
 PHOTO_DIR.mkdir(parents=True, exist_ok=True)
 FILE_DIR.mkdir(parents=True, exist_ok=True)
@@ -69,12 +72,15 @@ class VesselRegistry(BaseModel):
 class VesselRegistryUpdate(BaseModel):
     """어선 정보 수정용"""
     vessel_name: Optional[str] = None
+    owner_name: Optional[str] = None
+    organization: Optional[str] = None
     tonnage: Optional[float] = None
     length: Optional[float] = None
     engine_type: Optional[str] = None
     engine_count: Optional[int] = None
     engine_power_ps: Optional[float] = None
     engine_power_kw: Optional[float] = None
+    engine_name: Optional[str] = None
     hull_material: Optional[str] = None
     port: Optional[str] = None
     business_type: Optional[str] = None
@@ -83,7 +89,7 @@ class VesselRegistryUpdate(BaseModel):
     license_start_local: Optional[str] = None
     license_end_local: Optional[str] = None
     group_name: Optional[str] = None
-    fishing_hours: Optional[float] = None  # 조업시간
+    fishing_hours: Optional[float] = None
 
 
 class VesselInfo(BaseModel):
@@ -156,6 +162,28 @@ class AuctionCreate(BaseModel):
     quantity: float
     unit_price: float
     buyer: Optional[str] = None
+    note: Optional[str] = None
+
+
+class PrivateSaleCreate(BaseModel):
+    """사매 정보 입력용"""
+    voyage_id: str
+    sale_date: datetime
+    fish_species: str
+    quantity: float
+    unit_price: float
+    buyer: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ExpenseCreate(BaseModel):
+    """경비 정보 입력용"""
+    voyage_id: str
+    expense_date: datetime
+    category: str
+    description: Optional[str] = None
+    amount: float
+    note: Optional[str] = None
 
 
 class MemoCreate(BaseModel):
@@ -232,6 +260,7 @@ def get_vessel_registry(
     port: Optional[str] = None,
     business_type: Optional[str] = None,
     group_name: Optional[str] = None,
+    organization: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100)
 ):
@@ -261,6 +290,10 @@ def get_vessel_registry(
             base_query += " AND (group_name = ? OR group_name LIKE ? OR group_name LIKE ? OR group_name LIKE ?)"
             params.extend([group_name, f"{group_name}, %", f"%, {group_name}", f"%, {group_name}, %"])
 
+        if organization and organization != 'all':
+            base_query += " AND organization = ?"
+            params.append(organization)
+
         # 전체 개수
         cursor.execute(f"SELECT COUNT(*) {base_query}", params)
         total = cursor.fetchone()[0]
@@ -268,7 +301,7 @@ def get_vessel_registry(
         # 페이지네이션
         offset = (page - 1) * page_size
         # 조건절에서 테이블명을 별칭으로 변환
-        where_clause = base_query.replace('FROM vessel_registry WHERE 1=1', '').replace('vessel_name', 'v.vessel_name').replace('mmsi', 'v.mmsi').replace('registration_no', 'v.registration_no').replace('port', 'v.port').replace('business_type', 'v.business_type').replace('group_name', 'v.group_name')
+        where_clause = base_query.replace('FROM vessel_registry WHERE 1=1', '').replace('vessel_name', 'v.vessel_name').replace('mmsi', 'v.mmsi').replace('registration_no', 'v.registration_no').replace('port', 'v.port').replace('business_type', 'v.business_type').replace('group_name', 'v.group_name').replace('organization', 'v.organization')
         cursor.execute(
             f"""SELECT v.*,
                 (SELECT COUNT(*) FROM vessel_photos WHERE vessel_id = v.id) as photo_count,
@@ -345,6 +378,22 @@ def get_groups():
         # 그룹명으로 정렬하여 반환
         sorted_groups = sorted(group_counts.items(), key=lambda x: x[0])
         return {"data": [{"group_name": name, "count": count} for name, count in sorted_groups]}
+
+
+@app.get("/api/vessel-registry/organizations/list")
+def get_organizations():
+    """소속 목록 조회"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT organization, COUNT(*) as count
+            FROM vessel_registry
+            WHERE organization IS NOT NULL AND organization != ''
+            GROUP BY organization
+            ORDER BY organization
+        """)
+        rows = cursor.fetchall()
+        return {"data": [{"organization": row["organization"], "count": row["count"]} for row in rows]}
 
 
 @app.get("/api/vessel-registry/{vessel_id}")
@@ -530,6 +579,42 @@ def update_voyage(voyage_id: str, update: VoyageUpdate):
         return {"message": "수정되었습니다", "data": dict(cursor.fetchone())}
 
 
+@app.post("/api/voyages/get-or-create-monthly")
+def get_or_create_monthly_voyage(
+    mmsi: str = Query(...),
+    year: int = Query(...),
+    month: int = Query(...),
+    vessel_name: str = Query(...)
+):
+    """월별 항차 조회 또는 생성 (항적 조회용)"""
+    voyage_id = f"{mmsi}-{year}-{month:02d}"
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 기존 항차 확인
+        cursor.execute("SELECT * FROM voyages WHERE id = ?", (voyage_id,))
+        row = cursor.fetchone()
+
+        if row:
+            return {"data": dict(row), "created": False}
+
+        # 없으면 새로 생성
+        cursor.execute("""
+            INSERT INTO voyages (id, mmsi, year, voyage_no, vessel_name, departure_port,
+                departure_date, fishing_area, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            voyage_id, mmsi, year, month, vessel_name,
+            "-", f"{year}-{month:02d}-01T00:00:00",
+            f"{year}년 {month}월", "조업중"
+        ))
+        conn.commit()
+
+        cursor.execute("SELECT * FROM voyages WHERE id = ?", (voyage_id,))
+        return {"data": dict(cursor.fetchone()), "created": True}
+
+
 # ---------- 위판 관련 API ----------
 
 @app.get("/api/auctions")
@@ -546,6 +631,46 @@ def get_auctions(voyage_id: Optional[str] = None):
             params.append(voyage_id)
 
         query += " ORDER BY auction_date DESC"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        return {"data": [dict(row) for row in rows], "total": len(rows)}
+
+
+@app.get("/api/auctions/all")
+def get_all_auctions(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    fish_species: Optional[str] = None,
+    vessel_name: Optional[str] = None
+):
+    """전체 위판 목록 조회 (필터 포함)"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        query = """
+            SELECT a.*, v.vessel_name
+            FROM auctions a
+            LEFT JOIN voyages v ON a.voyage_id = v.id
+            WHERE 1=1
+        """
+        params = []
+
+        if start_date:
+            query += " AND a.auction_date >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND a.auction_date <= ?"
+            params.append(end_date + " 23:59:59")
+        if fish_species:
+            query += " AND a.fish_species LIKE ?"
+            params.append(f"%{fish_species}%")
+        if vessel_name:
+            query += " AND v.vessel_name LIKE ?"
+            params.append(f"%{vessel_name}%")
+
+        query += " ORDER BY a.auction_date DESC"
 
         cursor.execute(query, params)
         rows = cursor.fetchall()
@@ -573,12 +698,12 @@ def create_auction(auction: AuctionCreate):
 
         cursor.execute("""
             INSERT INTO auctions (id, voyage_id, auction_date, auction_port,
-                fish_species, quantity, unit_price, total_price, buyer)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                fish_species, quantity, unit_price, total_price, buyer, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             new_id, auction.voyage_id, auction.auction_date.isoformat(),
             auction.auction_port, auction.fish_species, auction.quantity,
-            auction.unit_price, total_price, auction.buyer
+            auction.unit_price, total_price, auction.buyer, auction.note
         ))
         conn.commit()
 
@@ -597,6 +722,227 @@ def delete_auction(auction_id: str):
             raise HTTPException(status_code=404, detail="위판 정보를 찾을 수 없습니다")
 
         cursor.execute("DELETE FROM auctions WHERE id = ?", (auction_id,))
+        conn.commit()
+
+        return {"message": "삭제되었습니다"}
+
+
+# ---------- 사매 관련 API ----------
+
+@app.get("/api/private-sales")
+def get_private_sales(voyage_id: Optional[str] = None):
+    """사매 목록 조회"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        query = "SELECT * FROM private_sales"
+        params = []
+
+        if voyage_id:
+            query += " WHERE voyage_id = ?"
+            params.append(voyage_id)
+
+        query += " ORDER BY sale_date DESC"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        return {"data": [dict(row) for row in rows], "total": len(rows)}
+
+
+@app.get("/api/private-sales/all")
+def get_all_private_sales(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    fish_species: Optional[str] = None,
+    vessel_name: Optional[str] = None
+):
+    """전체 사매 목록 조회 (필터 포함)"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        query = """
+            SELECT ps.*, v.vessel_name
+            FROM private_sales ps
+            LEFT JOIN voyages v ON ps.voyage_id = v.id
+            WHERE 1=1
+        """
+        params = []
+
+        if start_date:
+            query += " AND ps.sale_date >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND ps.sale_date <= ?"
+            params.append(end_date + " 23:59:59")
+        if fish_species:
+            query += " AND ps.fish_species LIKE ?"
+            params.append(f"%{fish_species}%")
+        if vessel_name:
+            query += " AND v.vessel_name LIKE ?"
+            params.append(f"%{vessel_name}%")
+
+        query += " ORDER BY ps.sale_date DESC"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        return {"data": [dict(row) for row in rows], "total": len(rows)}
+
+
+@app.post("/api/private-sales")
+def create_private_sale(sale: PrivateSaleCreate):
+    """사매 정보 등록"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 항차 존재 확인
+        cursor.execute("SELECT id FROM voyages WHERE id = ?", (sale.voyage_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="해당 항차를 찾을 수 없습니다")
+
+        # 새 ID 생성
+        cursor.execute("SELECT COUNT(*) FROM private_sales")
+        count = cursor.fetchone()[0] + 1
+        new_id = f"PVS-{datetime.now().year}-{count:03d}"
+
+        total_price = sale.quantity * sale.unit_price
+
+        cursor.execute("""
+            INSERT INTO private_sales (id, voyage_id, sale_date, fish_species,
+                quantity, unit_price, total_price, buyer, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            new_id, sale.voyage_id, sale.sale_date.isoformat(),
+            sale.fish_species, sale.quantity, sale.unit_price,
+            total_price, sale.buyer, sale.note
+        ))
+        conn.commit()
+
+        cursor.execute("SELECT * FROM private_sales WHERE id = ?", (new_id,))
+        return {"message": "등록되었습니다", "data": dict(cursor.fetchone())}
+
+
+@app.delete("/api/private-sales/{sale_id}")
+def delete_private_sale(sale_id: str):
+    """사매 정보 삭제"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM private_sales WHERE id = ?", (sale_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="사매 정보를 찾을 수 없습니다")
+
+        cursor.execute("DELETE FROM private_sales WHERE id = ?", (sale_id,))
+        conn.commit()
+
+        return {"message": "삭제되었습니다"}
+
+
+# ---------- 경비 관련 API ----------
+
+@app.get("/api/expenses")
+def get_expenses(voyage_id: Optional[str] = None):
+    """경비 목록 조회"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        query = "SELECT * FROM expenses"
+        params = []
+
+        if voyage_id:
+            query += " WHERE voyage_id = ?"
+            params.append(voyage_id)
+
+        query += " ORDER BY expense_date DESC"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        return {"data": [dict(row) for row in rows], "total": len(rows)}
+
+
+@app.get("/api/expenses/all")
+def get_all_expenses(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    category: Optional[str] = None,
+    vessel_name: Optional[str] = None
+):
+    """전체 경비 목록 조회 (필터 포함)"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        query = """
+            SELECT e.*, v.vessel_name
+            FROM expenses e
+            LEFT JOIN voyages v ON e.voyage_id = v.id
+            WHERE 1=1
+        """
+        params = []
+
+        if start_date:
+            query += " AND e.expense_date >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND e.expense_date <= ?"
+            params.append(end_date + " 23:59:59")
+        if category and category != 'all':
+            query += " AND e.category = ?"
+            params.append(category)
+        if vessel_name:
+            query += " AND v.vessel_name LIKE ?"
+            params.append(f"%{vessel_name}%")
+
+        query += " ORDER BY e.expense_date DESC"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        return {"data": [dict(row) for row in rows], "total": len(rows)}
+
+
+@app.post("/api/expenses")
+def create_expense(expense: ExpenseCreate):
+    """경비 정보 등록"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 항차 존재 확인
+        cursor.execute("SELECT id FROM voyages WHERE id = ?", (expense.voyage_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="해당 항차를 찾을 수 없습니다")
+
+        # 새 ID 생성
+        cursor.execute("SELECT COUNT(*) FROM expenses")
+        count = cursor.fetchone()[0] + 1
+        new_id = f"EXP-{datetime.now().year}-{count:03d}"
+
+        cursor.execute("""
+            INSERT INTO expenses (id, voyage_id, expense_date, category,
+                description, amount, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            new_id, expense.voyage_id, expense.expense_date.isoformat(),
+            expense.category, expense.description, expense.amount, expense.note
+        ))
+        conn.commit()
+
+        cursor.execute("SELECT * FROM expenses WHERE id = ?", (new_id,))
+        return {"message": "등록되었습니다", "data": dict(cursor.fetchone())}
+
+
+@app.delete("/api/expenses/{expense_id}")
+def delete_expense(expense_id: str):
+    """경비 정보 삭제"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM expenses WHERE id = ?", (expense_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="경비 정보를 찾을 수 없습니다")
+
+        cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
         conn.commit()
 
         return {"message": "삭제되었습니다"}
@@ -922,6 +1268,107 @@ def delete_vessel_file(vessel_id: int, file_id: int):
         conn.commit()
 
         return {"message": "파일이 삭제되었습니다"}
+
+
+# ---------- 항적 HTML 파일 API ----------
+
+@app.get("/api/tracks/list/{mmsi}")
+def get_track_list(mmsi: str):
+    """특정 MMSI의 항적 HTML 파일 목록 조회"""
+    mmsi_dir = TRACK_HTML_DIR / mmsi
+
+    if not mmsi_dir.exists():
+        return {"data": [], "years": [], "message": "항적 데이터가 없습니다"}
+
+    tracks = []
+    years_set = set()
+
+    for file in mmsi_dir.glob("*.html"):
+        # 파일명 형식: mmsi_year_month_count.html
+        parts = file.stem.split("_")
+        if len(parts) >= 4:
+            try:
+                year = int(parts[1])
+                month = int(parts[2])
+                count = int(parts[3])
+                years_set.add(year)
+                tracks.append({
+                    "filename": file.name,
+                    "year": year,
+                    "month": month,
+                    "count": count
+                })
+            except ValueError:
+                continue
+
+    # 연도 내림차순, 월 오름차순 정렬
+    tracks.sort(key=lambda x: (-x["year"], x["month"]))
+    years = sorted(list(years_set), reverse=True)
+
+    return {"data": tracks, "years": years}
+
+
+@app.get("/api/tracks/html/{mmsi}/{filename}")
+def get_track_html(mmsi: str, filename: str):
+    """항적 HTML 파일 내용 반환"""
+    file_path = TRACK_HTML_DIR / mmsi / filename
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="항적 파일을 찾을 수 없습니다")
+
+    # HTML 파일 내용 반환
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    return {"html": content, "filename": filename}
+
+
+@app.get("/api/tracks/years/{mmsi}")
+def get_track_years(mmsi: str):
+    """특정 MMSI의 사용 가능한 연도 목록"""
+    mmsi_dir = TRACK_HTML_DIR / mmsi
+
+    if not mmsi_dir.exists():
+        return {"years": []}
+
+    years_set = set()
+    for file in mmsi_dir.glob("*.html"):
+        parts = file.stem.split("_")
+        if len(parts) >= 2:
+            try:
+                year = int(parts[1])
+                years_set.add(year)
+            except ValueError:
+                continue
+
+    return {"years": sorted(list(years_set), reverse=True)}
+
+
+@app.get("/api/tracks/months/{mmsi}/{year}")
+def get_track_months(mmsi: str, year: int):
+    """특정 MMSI, 연도의 사용 가능한 월 목록"""
+    mmsi_dir = TRACK_HTML_DIR / mmsi
+
+    if not mmsi_dir.exists():
+        return {"months": []}
+
+    months_data = []
+    for file in mmsi_dir.glob(f"{mmsi}_{year}_*.html"):
+        parts = file.stem.split("_")
+        if len(parts) >= 4:
+            try:
+                month = int(parts[2])
+                count = int(parts[3])
+                months_data.append({
+                    "month": month,
+                    "count": count,
+                    "filename": file.name
+                })
+            except ValueError:
+                continue
+
+    months_data.sort(key=lambda x: x["month"])
+    return {"months": months_data}
 
 
 if __name__ == "__main__":
