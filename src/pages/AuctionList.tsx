@@ -52,18 +52,27 @@ import {
   FileText,
   Calendar,
   User,
+  Pencil,
+  Save,
+  X,
 } from 'lucide-react'
 import {
   type AuctionData,
   type PrivateSaleData,
   type ExpenseData,
   type ModificationHistory,
+  type AuctionUpdate,
+  type PrivateSaleUpdate,
+  type ExpenseUpdate,
   getGroups,
   getOrganizations,
   getBusinessTypes,
   getAuctionHistory,
   getPrivateSaleHistory,
   getExpenseHistory,
+  updateAuction,
+  updatePrivateSale,
+  updateExpense,
 } from '@/lib/api'
 
 // API 기본 URL
@@ -177,6 +186,27 @@ export default function AuctionList() {
   const [selectedRecordType, setSelectedRecordType] = useState<'auction' | 'private_sale' | 'expense'>('auction')
   const [modificationHistory, setModificationHistory] = useState<ModificationHistory[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+
+  // 수정 모드 상태
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editForm, setEditForm] = useState<{
+    // 위판
+    auction_date?: string
+    auction_port?: string
+    fish_species?: string
+    quantity?: number
+    unit_price?: number
+    buyer?: string
+    note?: string
+    // 사매
+    sale_date?: string
+    // 경비
+    expense_date?: string
+    category?: string
+    description?: string
+    amount?: number
+  }>({})
 
   // 경비 카테고리 목록
   const expenseCategories = ['유류비', '인건비', '수리비', '어구비', '식비', '기타']
@@ -299,6 +329,8 @@ export default function AuctionList() {
     setDetailDialogOpen(true)
     setHistoryLoading(true)
     setModificationHistory([])
+    setIsEditMode(false)
+    setEditForm({})
 
     try {
       let historyRes
@@ -314,6 +346,129 @@ export default function AuctionList() {
       console.error('이력 조회 실패:', error)
     } finally {
       setHistoryLoading(false)
+    }
+  }
+
+  // 수정 모드 시작
+  const startEditMode = () => {
+    if (!selectedRecord) return
+
+    if (selectedRecordType === 'auction') {
+      const auction = selectedRecord as AuctionData
+      setEditForm({
+        auction_date: auction.auction_date.slice(0, 16), // datetime-local format
+        auction_port: auction.auction_port,
+        fish_species: auction.fish_species,
+        quantity: auction.quantity,
+        unit_price: auction.unit_price,
+        buyer: auction.buyer || '',
+        note: auction.note || '',
+      })
+    } else if (selectedRecordType === 'private_sale') {
+      const sale = selectedRecord as PrivateSaleData
+      setEditForm({
+        sale_date: sale.sale_date.slice(0, 16),
+        fish_species: sale.fish_species,
+        quantity: sale.quantity,
+        unit_price: sale.unit_price,
+        buyer: sale.buyer || '',
+        note: sale.note || '',
+      })
+    } else {
+      const expense = selectedRecord as ExpenseData
+      setEditForm({
+        expense_date: expense.expense_date.slice(0, 16),
+        category: expense.category,
+        description: expense.description || '',
+        amount: expense.amount,
+        note: expense.note || '',
+      })
+    }
+    setIsEditMode(true)
+  }
+
+  // 수정 모드 취소
+  const cancelEditMode = () => {
+    setIsEditMode(false)
+    setEditForm({})
+  }
+
+  // 수정 저장
+  const saveEdit = async () => {
+    if (!selectedRecord) return
+    setEditSaving(true)
+
+    // ID를 미리 저장 (React state 비동기 업데이트 대응)
+    const recordId = selectedRecord.id
+    const recordType = selectedRecordType
+
+    try {
+      let updatedData: AuctionData | PrivateSaleData | ExpenseData | null = null
+
+      if (recordType === 'auction') {
+        const update: AuctionUpdate = {
+          auction_date: editForm.auction_date,
+          auction_port: editForm.auction_port,
+          fish_species: editForm.fish_species,
+          quantity: editForm.quantity,
+          unit_price: editForm.unit_price,
+          buyer: editForm.buyer || undefined,
+          note: editForm.note || undefined,
+        }
+        const res = await updateAuction(recordId, update)
+        updatedData = res.data
+        setSelectedRecord({ ...selectedRecord, ...res.data })
+        setAuctions(auctions.map(a => a.id === recordId ? { ...a, ...res.data } : a))
+      } else if (recordType === 'private_sale') {
+        const update: PrivateSaleUpdate = {
+          sale_date: editForm.sale_date,
+          fish_species: editForm.fish_species,
+          quantity: editForm.quantity,
+          unit_price: editForm.unit_price,
+          buyer: editForm.buyer || undefined,
+          note: editForm.note || undefined,
+        }
+        const res = await updatePrivateSale(recordId, update)
+        updatedData = res.data
+        setSelectedRecord({ ...selectedRecord, ...res.data })
+        setPrivateSales(privateSales.map(s => s.id === recordId ? { ...s, ...res.data } : s))
+      } else {
+        const update: ExpenseUpdate = {
+          expense_date: editForm.expense_date,
+          category: editForm.category,
+          description: editForm.description || undefined,
+          amount: editForm.amount,
+          note: editForm.note || undefined,
+        }
+        const res = await updateExpense(recordId, update)
+        updatedData = res.data
+        setSelectedRecord({ ...selectedRecord, ...res.data })
+        setExpenses(expenses.map(e => e.id === recordId ? { ...e, ...res.data } : e))
+      }
+
+      // 이력 새로고침 (저장된 ID 사용)
+      let historyRes
+      try {
+        if (recordType === 'auction') {
+          historyRes = await getAuctionHistory(recordId)
+        } else if (recordType === 'private_sale') {
+          historyRes = await getPrivateSaleHistory(recordId)
+        } else {
+          historyRes = await getExpenseHistory(recordId)
+        }
+        setModificationHistory(historyRes.data || [])
+      } catch (historyError) {
+        console.error('이력 조회 실패:', historyError)
+        // 이력 조회 실패해도 저장은 성공했으므로 계속 진행
+      }
+
+      setIsEditMode(false)
+      setEditForm({})
+    } catch (error) {
+      console.error('저장 실패:', error)
+      alert('저장에 실패했습니다.')
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -824,15 +979,58 @@ export default function AuctionList() {
       </Card>
 
       {/* 상세 보기 다이얼로그 */}
-      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+      <Dialog open={detailDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsEditMode(false)
+          setEditForm({})
+        }
+        setDetailDialogOpen(open)
+      }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              {selectedRecordType === 'auction' && '위판 상세 정보'}
-              {selectedRecordType === 'private_sale' && '사매 상세 정보'}
-              {selectedRecordType === 'expense' && '경비 상세 정보'}
-            </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                {selectedRecordType === 'auction' && '위판 상세 정보'}
+                {selectedRecordType === 'private_sale' && '사매 상세 정보'}
+                {selectedRecordType === 'expense' && '경비 상세 정보'}
+              </DialogTitle>
+              <div className="flex items-center gap-2 mr-6">
+                {isEditMode ? (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={cancelEditMode}
+                      disabled={editSaving}
+                      className="gap-1"
+                    >
+                      <X className="h-4 w-4" />
+                      취소
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={saveEdit}
+                      disabled={editSaving}
+                      className="gap-1"
+                    >
+                      <Save className="h-4 w-4" />
+                      {editSaving ? '저장 중...' : '저장'}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={startEditMode}
+                    className="gap-1"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    수정
+                  </Button>
+                )}
+              </div>
+            </div>
             <DialogDescription>
               ID: <span className="font-mono">{selectedRecord?.id}</span>
             </DialogDescription>
@@ -851,31 +1049,86 @@ export default function AuctionList() {
                     <>
                       <div>
                         <div className="text-xs text-muted-foreground">위판일시</div>
-                        <div className="text-sm font-medium">{formatDate((selectedRecord as AuctionData).auction_date)}</div>
+                        {isEditMode ? (
+                          <Input
+                            type="datetime-local"
+                            value={editForm.auction_date || ''}
+                            onChange={(e) => setEditForm({ ...editForm, auction_date: e.target.value })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{formatDate((selectedRecord as AuctionData).auction_date)}</div>
+                        )}
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">위판장</div>
-                        <div className="text-sm font-medium">{(selectedRecord as AuctionData).auction_port}</div>
+                        {isEditMode ? (
+                          <Input
+                            value={editForm.auction_port || ''}
+                            onChange={(e) => setEditForm({ ...editForm, auction_port: e.target.value })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{(selectedRecord as AuctionData).auction_port}</div>
+                        )}
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">어종</div>
-                        <div className="text-sm font-medium">{(selectedRecord as AuctionData).fish_species}</div>
+                        {isEditMode ? (
+                          <Input
+                            value={editForm.fish_species || ''}
+                            onChange={(e) => setEditForm({ ...editForm, fish_species: e.target.value })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{(selectedRecord as AuctionData).fish_species}</div>
+                        )}
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground">수량</div>
-                        <div className="text-sm font-medium">{(selectedRecord as AuctionData).quantity.toLocaleString()} kg</div>
+                        <div className="text-xs text-muted-foreground">수량 (kg)</div>
+                        {isEditMode ? (
+                          <Input
+                            type="number"
+                            value={editForm.quantity || ''}
+                            onChange={(e) => setEditForm({ ...editForm, quantity: parseFloat(e.target.value) || 0 })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{(selectedRecord as AuctionData).quantity.toLocaleString()} kg</div>
+                        )}
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground">단가</div>
-                        <div className="text-sm font-medium">{formatCurrency((selectedRecord as AuctionData).unit_price)}</div>
+                        <div className="text-xs text-muted-foreground">단가 (원)</div>
+                        {isEditMode ? (
+                          <Input
+                            type="number"
+                            value={editForm.unit_price || ''}
+                            onChange={(e) => setEditForm({ ...editForm, unit_price: parseFloat(e.target.value) || 0 })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{formatCurrency((selectedRecord as AuctionData).unit_price)}</div>
+                        )}
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">총액</div>
-                        <div className="text-sm font-bold text-primary">{formatCurrency((selectedRecord as AuctionData).total_price)}</div>
+                        <div className="text-sm font-bold text-primary">
+                          {isEditMode
+                            ? formatCurrency((editForm.quantity || 0) * (editForm.unit_price || 0))
+                            : formatCurrency((selectedRecord as AuctionData).total_price)}
+                        </div>
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">구매자</div>
-                        <div className="text-sm font-medium">{(selectedRecord as AuctionData).buyer || '-'}</div>
+                        {isEditMode ? (
+                          <Input
+                            value={editForm.buyer || ''}
+                            onChange={(e) => setEditForm({ ...editForm, buyer: e.target.value })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{(selectedRecord as AuctionData).buyer || '-'}</div>
+                        )}
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">선박명</div>
@@ -887,27 +1140,74 @@ export default function AuctionList() {
                     <>
                       <div>
                         <div className="text-xs text-muted-foreground">판매일시</div>
-                        <div className="text-sm font-medium">{formatDate((selectedRecord as PrivateSaleData).sale_date)}</div>
+                        {isEditMode ? (
+                          <Input
+                            type="datetime-local"
+                            value={editForm.sale_date || ''}
+                            onChange={(e) => setEditForm({ ...editForm, sale_date: e.target.value })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{formatDate((selectedRecord as PrivateSaleData).sale_date)}</div>
+                        )}
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">어종</div>
-                        <div className="text-sm font-medium">{(selectedRecord as PrivateSaleData).fish_species}</div>
+                        {isEditMode ? (
+                          <Input
+                            value={editForm.fish_species || ''}
+                            onChange={(e) => setEditForm({ ...editForm, fish_species: e.target.value })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{(selectedRecord as PrivateSaleData).fish_species}</div>
+                        )}
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground">수량</div>
-                        <div className="text-sm font-medium">{(selectedRecord as PrivateSaleData).quantity.toLocaleString()} kg</div>
+                        <div className="text-xs text-muted-foreground">수량 (kg)</div>
+                        {isEditMode ? (
+                          <Input
+                            type="number"
+                            value={editForm.quantity || ''}
+                            onChange={(e) => setEditForm({ ...editForm, quantity: parseFloat(e.target.value) || 0 })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{(selectedRecord as PrivateSaleData).quantity.toLocaleString()} kg</div>
+                        )}
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground">단가</div>
-                        <div className="text-sm font-medium">{formatCurrency((selectedRecord as PrivateSaleData).unit_price)}</div>
+                        <div className="text-xs text-muted-foreground">단가 (원)</div>
+                        {isEditMode ? (
+                          <Input
+                            type="number"
+                            value={editForm.unit_price || ''}
+                            onChange={(e) => setEditForm({ ...editForm, unit_price: parseFloat(e.target.value) || 0 })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{formatCurrency((selectedRecord as PrivateSaleData).unit_price)}</div>
+                        )}
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">총액</div>
-                        <div className="text-sm font-bold text-green-600">{formatCurrency((selectedRecord as PrivateSaleData).total_price)}</div>
+                        <div className="text-sm font-bold text-green-600">
+                          {isEditMode
+                            ? formatCurrency((editForm.quantity || 0) * (editForm.unit_price || 0))
+                            : formatCurrency((selectedRecord as PrivateSaleData).total_price)}
+                        </div>
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">구매자</div>
-                        <div className="text-sm font-medium">{(selectedRecord as PrivateSaleData).buyer || '-'}</div>
+                        {isEditMode ? (
+                          <Input
+                            value={editForm.buyer || ''}
+                            onChange={(e) => setEditForm({ ...editForm, buyer: e.target.value })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{(selectedRecord as PrivateSaleData).buyer || '-'}</div>
+                        )}
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">선박명</div>
@@ -919,19 +1219,63 @@ export default function AuctionList() {
                     <>
                       <div>
                         <div className="text-xs text-muted-foreground">지출일시</div>
-                        <div className="text-sm font-medium">{formatDate((selectedRecord as ExpenseData).expense_date)}</div>
+                        {isEditMode ? (
+                          <Input
+                            type="datetime-local"
+                            value={editForm.expense_date || ''}
+                            onChange={(e) => setEditForm({ ...editForm, expense_date: e.target.value })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{formatDate((selectedRecord as ExpenseData).expense_date)}</div>
+                        )}
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">카테고리</div>
-                        <div className="text-sm font-medium">{(selectedRecord as ExpenseData).category}</div>
+                        {isEditMode ? (
+                          <Select
+                            value={editForm.category}
+                            onValueChange={(value) => setEditForm({ ...editForm, category: value })}
+                          >
+                            <SelectTrigger className="h-8 text-sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {expenseCategories.map((cat) => (
+                                <SelectItem key={cat} value={cat}>
+                                  {cat}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="text-sm font-medium">{(selectedRecord as ExpenseData).category}</div>
+                        )}
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">내용</div>
-                        <div className="text-sm font-medium">{(selectedRecord as ExpenseData).description || '-'}</div>
+                        {isEditMode ? (
+                          <Input
+                            value={editForm.description || ''}
+                            onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium">{(selectedRecord as ExpenseData).description || '-'}</div>
+                        )}
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground">금액</div>
-                        <div className="text-sm font-bold text-orange-600">{formatCurrency((selectedRecord as ExpenseData).amount)}</div>
+                        <div className="text-xs text-muted-foreground">금액 (원)</div>
+                        {isEditMode ? (
+                          <Input
+                            type="number"
+                            value={editForm.amount || ''}
+                            onChange={(e) => setEditForm({ ...editForm, amount: parseFloat(e.target.value) || 0 })}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="text-sm font-bold text-orange-600">{formatCurrency((selectedRecord as ExpenseData).amount)}</div>
+                        )}
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">선박명</div>
@@ -941,7 +1285,16 @@ export default function AuctionList() {
                   )}
                   <div className="col-span-2">
                     <div className="text-xs text-muted-foreground">비고</div>
-                    <div className="text-sm font-medium">{selectedRecord.note || '-'}</div>
+                    {isEditMode ? (
+                      <Input
+                        value={editForm.note || ''}
+                        onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+                        className="h-8 text-sm"
+                        placeholder="비고 입력"
+                      />
+                    ) : (
+                      <div className="text-sm font-medium">{selectedRecord.note || '-'}</div>
+                    )}
                   </div>
                 </div>
               </div>

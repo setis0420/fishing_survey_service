@@ -785,6 +785,7 @@ def update_auction(auction_id: str, auction: AuctionUpdate):
             'note': auction.note
         }
 
+        history_recorded = False
         for field, new_val in field_map.items():
             if new_val is not None:
                 old_val = str(old_data.get(field, '') or '')
@@ -797,6 +798,7 @@ def update_auction(auction_id: str, auction: AuctionUpdate):
                     """, ('auction', auction_id, field, old_val, new_val_str))
                     update_fields.append(f"{field} = ?")
                     update_values.append(new_val)
+                    history_recorded = True
 
         if update_fields:
             # total_price 재계산
@@ -811,6 +813,9 @@ def update_auction(auction_id: str, auction: AuctionUpdate):
             cursor.execute(f"""
                 UPDATE auctions SET {', '.join(update_fields)} WHERE id = ?
             """, update_values)
+
+        # 변경사항이 있으면 커밋
+        if update_fields or history_recorded:
             conn.commit()
 
         cursor.execute("SELECT * FROM auctions WHERE id = ?", (auction_id,))
@@ -968,6 +973,7 @@ def update_private_sale(sale_id: str, sale: PrivateSaleUpdate):
             'note': sale.note
         }
 
+        history_recorded = False
         for field, new_val in field_map.items():
             if new_val is not None:
                 old_val = str(old_data.get(field, '') or '')
@@ -979,6 +985,7 @@ def update_private_sale(sale_id: str, sale: PrivateSaleUpdate):
                     """, ('private_sale', sale_id, field, old_val, new_val_str))
                     update_fields.append(f"{field} = ?")
                     update_values.append(new_val)
+                    history_recorded = True
 
         if update_fields:
             new_quantity = sale.quantity if sale.quantity is not None else old_data['quantity']
@@ -992,6 +999,9 @@ def update_private_sale(sale_id: str, sale: PrivateSaleUpdate):
             cursor.execute(f"""
                 UPDATE private_sales SET {', '.join(update_fields)} WHERE id = ?
             """, update_values)
+
+        # 변경사항이 있으면 커밋
+        if update_fields or history_recorded:
             conn.commit()
 
         cursor.execute("SELECT * FROM private_sales WHERE id = ?", (sale_id,))
@@ -1145,6 +1155,7 @@ def update_expense(expense_id: str, expense: ExpenseUpdate):
             'note': expense.note
         }
 
+        history_recorded = False
         for field, new_val in field_map.items():
             if new_val is not None:
                 old_val = str(old_data.get(field, '') or '')
@@ -1156,6 +1167,7 @@ def update_expense(expense_id: str, expense: ExpenseUpdate):
                     """, ('expense', expense_id, field, old_val, new_val_str))
                     update_fields.append(f"{field} = ?")
                     update_values.append(new_val)
+                    history_recorded = True
 
         if update_fields:
             update_fields.append("updated_at = CURRENT_TIMESTAMP")
@@ -1163,6 +1175,9 @@ def update_expense(expense_id: str, expense: ExpenseUpdate):
             cursor.execute(f"""
                 UPDATE expenses SET {', '.join(update_fields)} WHERE id = ?
             """, update_values)
+
+        # 변경사항이 있으면 커밋
+        if update_fields or history_recorded:
             conn.commit()
 
         cursor.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,))

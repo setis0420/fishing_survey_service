@@ -129,7 +129,7 @@ def init_db():
         if 'note' not in auction_columns:
             cursor.execute("ALTER TABLE auctions ADD COLUMN note TEXT")
         if 'updated_at' not in auction_columns:
-            cursor.execute("ALTER TABLE auctions ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            cursor.execute("ALTER TABLE auctions ADD COLUMN updated_at TIMESTAMP")
 
         # 사매 테이블 (위판장 외 직접 판매)
         cursor.execute("""
@@ -153,7 +153,7 @@ def init_db():
         cursor.execute("PRAGMA table_info(private_sales)")
         ps_columns = [col[1] for col in cursor.fetchall()]
         if 'updated_at' not in ps_columns:
-            cursor.execute("ALTER TABLE private_sales ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            cursor.execute("ALTER TABLE private_sales ADD COLUMN updated_at TIMESTAMP")
 
         # 경비 테이블
         cursor.execute("""
@@ -175,7 +175,7 @@ def init_db():
         cursor.execute("PRAGMA table_info(expenses)")
         exp_columns = [col[1] for col in cursor.fetchall()]
         if 'updated_at' not in exp_columns:
-            cursor.execute("ALTER TABLE expenses ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            cursor.execute("ALTER TABLE expenses ADD COLUMN updated_at TIMESTAMP")
 
         # 수정이력 테이블 (위판/사매/경비 공용)
         cursor.execute("""
